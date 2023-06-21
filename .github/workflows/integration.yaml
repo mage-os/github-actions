@@ -66,7 +66,15 @@ jobs:
       elasticsearch:
         image: ${{ matrix.elasticsearch }}
         env:
+          # By default, ElasticSearch refuses to spawn in single node configuration, as it expects redundancy.
           discovery.type: single-node
+          # This is a dev environment, so redundancy is just wasteful.
+          # Disable HTTPS and password authentication
+          # this is a local dev environment, so the added CA chain complexity is an extreme overkill
+          xpack.security.enabled: false
+          xpack.security.http.ssl.enabled: false
+          xpack.security.transport.ssl.enabled: false
+
         options: >-
           --health-cmd "curl http://localhost:9200/_cluster/health"
           --health-interval 10s
