@@ -27,7 +27,7 @@ on:
       magento_repository:
         type: string
         required: false
-        default: "https://preview-mirror.mage-os.org/"
+        default: "https://mirror.mage-os.org/"
         description: "Where to install Magento from"
 
       matrix:
@@ -185,10 +185,24 @@ jobs:
         sed -i "s/'amqp-host' => 'localhost'/'amqp-host' => '127.0.0.1'/" etc/install-config-mysql.php.dist
 
     # mysql server 5.7 doesn't have the column-statistics expected by mysql client 8 (failing 2.3.7-p* builds)
-    - name: Disable column-statistics for mysqldump
-      run: sudo echo "\n[mysqldump]\ncolumn-statistics=0" >> /etc/my.cnf
+    - name: Switch from mysql-client 8 to mysql-client 5.7
       if: |
         steps.magento-version.outputs.version == '"2.3.7-p3"' || steps.magento-version.outputs.version == '"2.3.7-p4"'
+      run: |
+        mkdir -p /tmp/mysql-5.7
+        cd /tmp/mysql-5.7
+        sudo apt-get purge mysql-server mysql-client mysql-common mysql-server-core-* mysql-client-core-*
+        sudo rm -rf /etc/mysql /var/lib/mysql
+        sudo apt-get autoremove
+        sudo apt-get autoclean
+        wget --quiet https://downloads.mysql.com/archives/get/p/23/file/mysql-server_5.7.30-1ubuntu18.04_amd64.deb-bundle.tar
+        tar -xf mysql-server_5.7.30-1ubuntu18.04_amd64.deb-bundle.tar
+        sudo dpkg -i mysql-common_5.7.30-1ubuntu18.04_amd64.deb
+        sudo dpkg -i libmysqlclient20_5.7.30-1ubuntu18.04_amd64.deb
+        sudo dpkg -i mysql-community-client_5.7.30-1ubuntu18.04_amd64.deb
+        sudo dpkg -i mysql-client_5.7.30-1ubuntu18.04_amd64.deb
+        sudo dpkg -i libmysqlclient20_5.7.30-1ubuntu18.04_amd64.deb
+        mysqldump --version
 
     - run: ${{ inputs.test_command }}
       working-directory:  ${{ inputs.magento_directory }}/dev/tests/integration
