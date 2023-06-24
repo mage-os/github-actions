@@ -184,6 +184,12 @@ jobs:
         sed -i "s/'elasticsearch-host' => 'localhost'/'elasticsearch-host' => '127.0.0.1'/" etc/install-config-mysql.php.dist
         sed -i "s/'amqp-host' => 'localhost'/'amqp-host' => '127.0.0.1'/" etc/install-config-mysql.php.dist
 
+    # mysql server 5.7 doesn't have the column-statistics expected by mysql client 8 (failing 2.3.7-p* builds)
+    - name: Disable dumping column-statistics for mysqldump
+      run: echo "\n[mysqldump]\ncolumn-statistics=0" >> /etc/my.cnf
+      if: |
+        steps.magento-version.outputs.version == '"2.3.7-p3"' || steps.magento-version.outputs.version == '"2.3.7-p4"'
+
     - run: ${{ inputs.test_command }}
       working-directory:  ${{ inputs.magento_directory }}/dev/tests/integration
       name: Run Integration Tests
