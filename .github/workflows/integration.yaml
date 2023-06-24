@@ -185,8 +185,8 @@ jobs:
         sed -i "s/'amqp-host' => 'localhost'/'amqp-host' => '127.0.0.1'/" etc/install-config-mysql.php.dist
 
     # mysql server 5.7 doesn't have the column-statistics expected by mysql client 8 (failing 2.3.7-p* builds)
-    - name: Disable dumping column-statistics for mysqldump
-      run: echo "\n[mysqldump]\ncolumn-statistics=0" >> /etc/my.cnf
+    - name: Disable column-statistics for mysqldump
+      run: sudo echo "\n[mysqldump]\ncolumn-statistics=0" >> /etc/my.cnf
       if: |
         steps.magento-version.outputs.version == '"2.3.7-p3"' || steps.magento-version.outputs.version == '"2.3.7-p4"'
 
@@ -198,7 +198,7 @@ jobs:
       uses: actions/upload-artifact@v3
       if: failure()
       with:
-        name: sandbox-data
+        name: sandbox-data-${{ steps.magento-version.outputs.version }}
         path: /home/runner/work/infrastructure/magento2/dev/tests/integration/tmp/sandbox-*
         retention-days: 3
 
