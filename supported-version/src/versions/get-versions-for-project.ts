@@ -1,10 +1,12 @@
 import {Project} from "../project/projects";
 
 const individual = {
+    'mage-os': require('./mage-os/individual.json'),
     'magento-open-source': require('./magento-open-source/individual.json')
 }
 
 const composite = {
+    'mage-os': require('./mage-os/composite.json'),
     'magento-open-source': require('./magento-open-source/composite.json')
 }
 

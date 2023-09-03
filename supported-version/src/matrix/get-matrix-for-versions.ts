@@ -1,4 +1,4 @@
-import { GithubActionsMatrix, MagentoMatrixVersion } from "./matrix-type";
+import { GithubActionsMatrix, PackageMatrixVersion } from "./matrix-type";
 import {getIndividualVersionsForProject, getCompositeVersionsForProject} from "../versions/get-versions-for-project";
 
 /**
@@ -6,7 +6,7 @@ import {getIndividualVersionsForProject, getCompositeVersionsForProject} from ".
  */
 export const getMatrixForVersions = (versions: string[]): GithubActionsMatrix => {
     const project = "magento-open-source"
-    const knownVersions : Record<string, MagentoMatrixVersion> = {
+    const knownVersions : Record<string, PackageMatrixVersion> = {
         ...getIndividualVersionsForProject(project), ...getCompositeVersionsForProject(project)
     }
     
