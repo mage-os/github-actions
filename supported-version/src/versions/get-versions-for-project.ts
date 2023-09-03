@@ -1,4 +1,5 @@
-import {validateProject} from "../project/validate-projects";
+import { validateProject } from "../project/validate-projects";
+import { PackageMatrixVersion } from "../matrix/matrix-type";
 
 const individual = {
     'mage-os': require('./mage-os/individual.json'),
@@ -10,7 +11,7 @@ const composite = {
     'magento-open-source': require('./magento-open-source/composite.json')
 }
 
-export const getIndividualVersionsForProject = (project: string): object => {
+export const getIndividualVersionsForProject = (project: string): Record<string, PackageMatrixVersion> => {
     validateProject(<any>project)
     if (individual[project] === undefined) {
         throw new Error(
@@ -21,7 +22,7 @@ export const getIndividualVersionsForProject = (project: string): object => {
     return individual[project]
 }
 
-export const getCompositeVersionsForProject = (project: string): object => {
+export const getCompositeVersionsForProject = (project: string): Record<string, PackageMatrixVersion> => {
     validateProject(<any>project)
     if (composite[project] === undefined) {
         throw new Error(
