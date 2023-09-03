@@ -1,5 +1,4 @@
 import { validateProject } from "./validate-projects";
-import {validateKind} from "../kind/validate-kinds";
 
 describe('validateProject', () => {
     it('returns `true` if its a valid project', () => {
@@ -7,7 +6,7 @@ describe('validateProject', () => {
         expect(validateProject("mage-os")).toBe(true);
     });
     
-    it('throws a helprul exception if it is an invalid project', () => {
-        expect(() => validateKind(<any>"quark")).toThrowError();
+    it('throws a helrul exception if it is an invalid project', () => {
+        expect(() => validateProject(<any>"quark")).toThrowError();
     })
 })
