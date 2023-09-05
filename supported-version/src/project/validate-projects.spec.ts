@@ -6,7 +6,7 @@ describe('validateProject', () => {
         expect(validateProject("mage-os")).toBe(true);
     });
     
-    it('throws a helrul exception if it is an invalid project', () => {
+    it('throws a helpful exception if it is an invalid project', () => {
         expect(() => validateProject(<any>"quark")).toThrowError();
     })
 })

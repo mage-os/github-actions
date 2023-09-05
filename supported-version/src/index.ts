@@ -8,7 +8,7 @@ export async function run(): Promise<void> {
   try { 
     const kind = core.getInput("kind");
     const customVersions = core.getInput("custom_versions");
-    const project = core.getInput("project") ?? "magento-open-source";
+    const project = core.getInput("project");
     
     validateProject(<any>project)
 

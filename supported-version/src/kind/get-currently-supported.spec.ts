@@ -2,7 +2,7 @@ import { getCurrentlySupportedVersions } from "./get-currently-supported";
 import { Project } from "../project/projects";
 
 describe('getCurrentlySupportedVersions for magento-open-source', () => {
-    const project = <Project>"magento-open-source";
+    const project: Project = "magento-open-source";
     
     it('should say that v2.4.0 is not supported in 2025', () => {
         const date: Date = new Date('2025-01-01T00:00:00Z');
@@ -57,7 +57,7 @@ describe('getCurrentlySupportedVersions for magento-open-source', () => {
 })
 
 describe('getCurrentlySupportedVersions for mage-os', () => {
-    const project = <Project>"mage-os";
+    const project: Project = "mage-os";
 
     it('should say that v1.0.0 is not supported in 2027', () => {
         const date: Date = new Date('2027-01-01T00:00:00Z');
