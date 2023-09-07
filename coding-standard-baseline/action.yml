@@ -64,8 +64,12 @@ runs:
           app:
             - '**/*.php'
             - '**/*.phtml'
+            - '**/*.graphqls'
+            - '**/*.less'
+            - '**/*.css'
             - '**/*.html'
             - '**/*.xml'
+            - '**/*.js'
 
     - name: Inform if no files have changed
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'false'
