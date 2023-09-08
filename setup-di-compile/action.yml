@@ -6,7 +6,7 @@ inputs:
   php_version:
     required: true
     default: "8.1"
-    description: "PHP version used to do the coding standard check."
+    description: "PHP version used to run setup:di:compile."
 
   composer_version:
     required: true
@@ -39,6 +39,10 @@ runs:
         php-version: ${{ inputs.php_version }}
         tools: composer:v${{ inputs.composer_version }}
         coverage: none
+
+    - uses: mage-os/github-actions/cache-magento@main
+      with:
+        mode: 'store'
 
     - name: Install composer dependencies
       if: steps.changed-files.outputs.magento_any_changed == 'true'
