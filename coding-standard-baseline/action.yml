@@ -111,8 +111,8 @@ runs:
     - name: Register Coding Standard
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
-      run: | 
-        vendor/bin/phpcs --config-set installed_paths \
+      run: |
+        ${{ github.workspace }}/vendor/bin/phpcs --config-set installed_paths \
         ${{ github.workspace }}/vendor/magento/magento-coding-standard,${{ github.workspace }}/vendor/phpcompatibility/php-compatibility
 
     - name: Create phpcs.baseline.xml in base
