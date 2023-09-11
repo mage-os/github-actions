@@ -48,11 +48,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Debug
-      shell: bash
-      run: |
-        echo "Comparing ${{github.event.pull_request.head.repo.full_name}}:${{github.event.pull_request.head.ref}} to ${{github.event.pull_request.base.repo.full_name}}:${{github.event.pull_request.base.ref}}"
-
     - name: Checkout head
       uses: actions/checkout@v4
       with:
@@ -80,14 +75,6 @@ runs:
       run: |
         echo "No files relevant to PHPCS have changed. Skipping PHPCS run."
         echo "List all the files that have changed: ${{ steps.changed-files-phpcs.outputs.app_all_changed_files }}"
-
-    - name: Checkout base
-      if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
-      uses: actions/checkout@v4
-      with:
-          ref: ${{github.event.pull_request.base.ref}}
-          repository: ${{github.event.pull_request.base.repo.full_name}}
-          path: base
 
     - name: Run step if test file(s) change
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
@@ -120,7 +107,15 @@ runs:
         ${{ github.workspace }}/vendor/bin/phpcs --config-set installed_paths \
         ${{ github.workspace }}/vendor/magento/magento-coding-standard,${{ github.workspace }}/vendor/phpcompatibility/php-compatibility
 
-    - name: Create phpcs.baseline.xml in base
+    - name: Checkout base to generate baseline
+      if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
+      uses: actions/checkout@v4
+      with:
+        ref: ${{github.event.pull_request.base.ref}}
+        repository: ${{github.event.pull_request.base.repo.full_name}}
+        path: base
+
+    - name: Create phpcs.baseline.xml from base
       shell: bash
       working-directory: base
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
@@ -138,19 +133,15 @@ runs:
       run: |
         cp ${{ github.workspace }}/base/phpcs.baseline.xml ${{ github.workspace }}/phpcs.baseline.xml
 
+    # Since we ran phpcs in the base folder, the files in phpcs.baseline.xml contain the base folder in the path.
+    # We need to remove that so that the phpcs run in the head folder will find the files.
     - name: Remove base dir from phpcs baseline
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
       run: |
         sed -i "s|/base/|/|" ${{ github.workspace }}/phpcs.baseline.xml
 
-    - name: Debug, cat baseline
-      if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
-      shell: bash
-      run: |
-        cat ${{ github.workspace }}/phpcs.baseline.xml
-
-    - name: Execute phpcs on head
+    - name: Execute phpcs on head for changed files
       shell: bash
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       run: |        
