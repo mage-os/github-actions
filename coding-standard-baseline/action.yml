@@ -67,9 +67,6 @@ runs:
       id: changed-files-phpcs
       with:
         path: head
-        write_output_files: true
-        output_dir: ${{ github.workspace }}
-        separator: " "
         files_yaml: |
           app:
             - '**/*.php'
@@ -115,9 +112,11 @@ runs:
     - name: Register Coding Standard
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
-      run: vendor/bin/phpcs --config-set installed_paths ${{ github.workspace }}/vendor/magento/magento-coding-standard,${{ github.workspace }}/vendor/phpcompatibility/php-compatibility
+      run: | 
+        vendor/bin/phpcs --config-set installed_paths \
+        ${{ github.workspace }}/vendor/magento/magento-coding-standard,${{ github.workspace }}/vendor/phpcompatibility/php-compatibility
 
-    - name: Create phpcs.baseline.xml
+    - name: Create phpcs.baseline.xml in base
       shell: bash
       working-directory: base
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
@@ -130,16 +129,18 @@ runs:
         ${{ steps.changed-files-phpcs.outputs.app_all_changed_files }} || /bin/true
 
     - name: Copy baseline to head
+      if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
       run: |
         cp ${{ github.workspace }}/base/phpcs.baseline.xml ${{ github.workspace }}/head/phpcs.baseline.xml
 
     - name: Debug, cat baseline
+      if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
       run: |
         cat ${{ github.workspace }}/head/phpcs.baseline.xml
 
-    - name: Checkout after Merge and execute phpcs
+    - name: Execute phpcs on head
       shell: bash
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       working-directory: head
