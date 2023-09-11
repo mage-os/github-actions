@@ -83,7 +83,7 @@ runs:
         echo "One or more files relevant to PHPCS have changed."
         echo "List all the files that have changed: ${{ steps.changed-files-phpcs.outputs.app_all_changed_files }}"
 
-    - name: Set PHP Version
+    - name: Setup PHP
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       uses: shivammathur/setup-php@v2
       with:
@@ -100,7 +100,7 @@ runs:
         composer config --no-plugins allow-plugins.digitalrevolution/php-codesniffer-baseline true
         composer require --dev "digitalrevolution/php-codesniffer-baseline: ${{ github.event.inputs.baseline_version || '*' }}"
 
-    - name: Register Coding Standard
+    - name: Register coding standards
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
       run: |
@@ -134,7 +134,7 @@ runs:
         cp ${{ github.workspace }}/base/phpcs.baseline.xml ${{ github.workspace }}/phpcs.baseline.xml
 
     # Since we ran phpcs in the base folder, the files in phpcs.baseline.xml contain the base folder in the path.
-    # We need to remove that so that the phpcs run in the head folder will find the files.
+    # We need to remove /base/ so that the phpcs can locate the correct files.
     - name: Remove base dir from phpcs baseline
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
