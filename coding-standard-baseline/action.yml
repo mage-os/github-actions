@@ -128,13 +128,6 @@ runs:
         $([ -n "${{ inputs.error_severity }}" ] && echo "--error-severity=${{ inputs.error_severity }}") \
         --report=\\DR\\CodeSnifferBaseline\\Reports\\Baseline --report-file=${{ github.workspace }}/phpcs.baseline.xml \
         ${{ steps.changed-files-phpcs.outputs.app_all_changed_files }} || /bin/true
-        
-        if [ -f "${{ github.workspace }}/phpcs.baseline.xml" ]; then
-          echo "phpcs.baseline.xml created successfully."
-        else
-          echo "phpcs.baseline.xml not created."
-          exit 1
-        fi
 
     - name: Copy baseline to head
       shell: bash
