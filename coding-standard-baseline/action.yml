@@ -76,7 +76,7 @@ runs:
         echo "No files relevant to PHPCS have changed. Skipping PHPCS run."
         echo "List all the files that have changed: ${{ steps.changed-files-phpcs.outputs.app_all_changed_files }}"
 
-    - name: Run step if test file(s) change
+    - name: Inform if relevant files have changed
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
       run: |
