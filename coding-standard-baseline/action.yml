@@ -138,6 +138,12 @@ runs:
       run: |
         cp ${{ github.workspace }}/base/phpcs.baseline.xml ${{ github.workspace }}/phpcs.baseline.xml
 
+    - name: Remove base dir from phpcs baseline
+      if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
+      shell: bash
+      run: |
+        sed -i "s|/base/|/|" ${{ github.workspace }}/phpcs.baseline.xml
+
     - name: Debug, cat baseline
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
