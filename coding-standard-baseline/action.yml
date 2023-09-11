@@ -48,15 +48,25 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Checkout Project
-      uses: actions/checkout@v3
+    - name: Checkout head
+      uses: actions/checkout@v4
       with:
-        fetch-depth: 0
+        ref: ${{github.event.pull_request.head.ref}}
+        repository: ${{github.event.pull_request.head.repo.full_name}}
+        path: head
+
+    - name: Checkout base
+      uses: actions/checkout@v4
+      with:
+          ref: ${{github.event.pull_request.base.ref}}
+          repository: ${{github.event.pull_request.base.repo.full_name}}
+          path: base
 
     - name: Get all changed files
       uses: tj-actions/changed-files@v39
       id: changed-files-phpcs
       with:
+        path: head
         write_output_files: true
         output_dir: ${{ github.workspace }}
         separator: " "
@@ -107,18 +117,9 @@ runs:
       shell: bash
       run: vendor/bin/phpcs --config-set installed_paths ${{ github.workspace }}/vendor/magento/magento-coding-standard,${{ github.workspace }}/vendor/phpcompatibility/php-compatibility
 
-    - name: Checkout - Before Merge
-      shell: bash
-      if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
-      run: |
-        if ${{ github.event_name == 'pull_request' }}; then
-          git checkout ${{ github.event.pull_request.base.ref }}
-        else
-          git checkout ${{ github.event.before }}
-        fi
-
     - name: Create phpcs.baseline.xml
       shell: bash
+      working-directory: base
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       run: |
         php vendor/bin/phpcs --standard=Magento2 \
@@ -135,16 +136,16 @@ runs:
           exit 1
         fi
 
+    - name: Copy baseline to head
+      shell: bash
+      run: |
+        cp ${{ github.workspace }}/base/phpcs.baseline.xml ${{ github.workspace }}/head/phpcs.baseline.xml
+
     - name: Checkout after Merge and execute phpcs
       shell: bash
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
-      run: |
-        if ${{ github.event_name == 'pull_request' }}; then
-          git checkout ${{ github.event.pull_request.head.ref }}
-        else
-          git checkout ${{ github.event.after }}
-        fi
-        
+      working-directory: head
+      run: |        
         php vendor/bin/phpcs --standard=Magento2 \
         $([ -n "${{ inputs.severity }}" ] && echo "--severity=${{ inputs.severity }}") \
         $([ -n "${{ inputs.warning_severity }}" ] && echo "--warning-severity=${{ inputs.warning_severity }}") \
