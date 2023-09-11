@@ -58,7 +58,6 @@ runs:
       uses: tj-actions/changed-files@v39
       id: changed-files-phpcs
       with:
-        path: head
         files_yaml: |
           app:
             - '**/*.php'
