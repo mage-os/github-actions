@@ -53,14 +53,6 @@ runs:
       with:
         ref: ${{github.event.pull_request.head.ref}}
         repository: ${{github.event.pull_request.head.repo.full_name}}
-        path: head
-
-    - name: Checkout base
-      uses: actions/checkout@v4
-      with:
-          ref: ${{github.event.pull_request.base.ref}}
-          repository: ${{github.event.pull_request.base.repo.full_name}}
-          path: base
 
     - name: Get all changed files
       uses: tj-actions/changed-files@v39
@@ -77,6 +69,14 @@ runs:
             - '**/*.html'
             - '**/*.xml'
             - '**/*.js'
+
+    - name: Checkout base
+      if: steps.changed-files-phpcs.outputs.app_any_changed == 'false'
+      uses: actions/checkout@v4
+      with:
+          ref: ${{github.event.pull_request.base.ref}}
+          repository: ${{github.event.pull_request.base.repo.full_name}}
+          path: base
 
     - name: Inform if no files have changed
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'false'
@@ -132,18 +132,17 @@ runs:
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
       run: |
-        cp ${{ github.workspace }}/base/phpcs.baseline.xml ${{ github.workspace }}/head/phpcs.baseline.xml
+        cp ${{ github.workspace }}/base/phpcs.baseline.xml ${{ github.workspace }}/phpcs.baseline.xml
 
     - name: Debug, cat baseline
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       shell: bash
       run: |
-        cat ${{ github.workspace }}/head/phpcs.baseline.xml
+        cat ${{ github.workspace }}/phpcs.baseline.xml
 
     - name: Execute phpcs on head
       shell: bash
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
-      working-directory: head
       run: |        
         php ${{ github.workspace }}/vendor/bin/phpcs --standard=Magento2 \
         $([ -n "${{ inputs.severity }}" ] && echo "--severity=${{ inputs.severity }}") \
