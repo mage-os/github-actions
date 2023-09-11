@@ -134,12 +134,17 @@ runs:
       run: |
         cp ${{ github.workspace }}/base/phpcs.baseline.xml ${{ github.workspace }}/head/phpcs.baseline.xml
 
+    - name: Debug, cat baseline
+      shell: bash
+      run: |
+        cat ${{ github.workspace }}/head/phpcs.baseline.xml
+
     - name: Checkout after Merge and execute phpcs
       shell: bash
       if: steps.changed-files-phpcs.outputs.app_any_changed == 'true'
       working-directory: head
       run: |        
-        php vendor/bin/phpcs --standard=Magento2 \
+        php ${{ github.workspace }}/vendor/bin/phpcs --standard=Magento2 \
         $([ -n "${{ inputs.severity }}" ] && echo "--severity=${{ inputs.severity }}") \
         $([ -n "${{ inputs.warning_severity }}" ] && echo "--warning-severity=${{ inputs.warning_severity }}") \
         $([ -n "${{ inputs.error_severity }}" ] && echo "--error-severity=${{ inputs.error_severity }}") \
