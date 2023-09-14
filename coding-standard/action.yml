@@ -85,6 +85,6 @@ runs:
         $([ -n "${{ inputs.severity }}" ] && echo "--severity=${{ inputs.severity }}") \
         $([ -n "${{ inputs.warning_severity }}" ] && echo "--warning-severity=${{ inputs.warning_severity }}") \
         $([ -n "${{ inputs.error_severity }}" ] && echo "--error-severity=${{ inputs.error_severity }}") \
-        $([ "${{ inputs.fail_on_warnings }}" -eq 0 ] && echo "--warning-severity=10") \        
+        $([ ${{ inputs.fail_on_warnings }} -eq 0 ] && echo "--warning-severity=10") \        
         ${{ github.event_name == 'pull_request' && steps.changed-files.outputs.files || inputs.path }}
       working-directory: project
