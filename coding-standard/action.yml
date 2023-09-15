@@ -39,7 +39,7 @@ inputs:
 
   fail_on_warnings:
     description: 'Whether or not the action should fail on warnings, defaults to true (fails on warnings)'
-    default: 1
+    default: true
     required: false
 
 runs:
