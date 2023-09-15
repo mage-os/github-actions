@@ -38,7 +38,7 @@ inputs:
     description: "The minimum severity required to display an error"
 
   fail_on_warnings:
-    description: 'Whether action should fail on warnings or not, default to true (fails)'
+    description: 'Whether or not the action should fail on warnings, defaults to true (fails on warnings)'
     default: 1
     required: false
 
