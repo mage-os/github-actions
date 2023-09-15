@@ -65,7 +65,8 @@ runs:
     - name: Enable dealerdirect/phpcodesniffer-composer-installer plugin
       shell: bash
       working-directory: standard
-      run: $([ "2.2" = "`echo -e "${{ inputs.composer_version }}\n2.2" | sort -V | head -n1`" ] && echo "composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer  true --global")
+      run: echo -e "2\n2.2" | sort -V
+      #run: $([ "2.2" = "`echo -e "${{ inputs.composer_version }}\n2.2" | sort -V | head -n1`" ] && echo "composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer  true --global")
 
     - name: Install Coding Standard
       shell: bash
