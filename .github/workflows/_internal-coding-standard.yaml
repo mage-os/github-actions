@@ -31,6 +31,18 @@ on:
         required: true
 
 jobs:
+  compute_matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.supported-version.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./supported-version
+        with:
+          kind: all
+        id: supported-version
+      - run: echo ${{ steps.supported-version.outputs.matrix }}
+
   coding-standard:
     runs-on: ubuntu-latest
     steps:
@@ -39,3 +51,5 @@ jobs:
         with:
           version: ${{ github.event.inputs.version || '*' }}
           path: ${{ github.event.inputs.path || '_test/demo-package' }}
+          composer_version: ${{ matrix.composer }}
+          php_version: ${{ matrix.php }}
