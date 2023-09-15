@@ -62,6 +62,11 @@ runs:
         tools: composer:v${{ inputs.composer_version }}
         coverage: none
 
+    - name: Enable dealerdirect/phpcodesniffer-composer-installer plugin
+      shell: bash
+      working-directory: standard
+      run: composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer  true --global
+
     - name: Install Coding Standard
       shell: bash
       working-directory: standard

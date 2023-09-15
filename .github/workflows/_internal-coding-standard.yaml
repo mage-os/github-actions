@@ -38,4 +38,4 @@ jobs:
       - uses: './coding-standard'
         with:
           version: ${{ github.event.inputs.version || '*' }}
-          path: ${{ github.event.inputs.path || '_test/demo-package' }}
+          path: ${{ github.event.inputs.path || '' }}
