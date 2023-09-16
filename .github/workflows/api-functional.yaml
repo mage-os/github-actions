@@ -1,0 +1,201 @@
+on:
+  workflow_call:
+    inputs:
+      use_local_source:
+        type: boolean
+        required: false
+        default: true
+        description: "Whether or not you want to test your local package or not."
+
+      source_folder:
+        type: string
+        required: false
+        default: $GITHUB_WORKSPACE
+        description: "The source folder of the package"
+
+      package_name:
+        type: string
+        required: true
+        description: "The name of the package"
+
+      magento_directory:
+        type: string
+        required: false
+        default: "../magento2"
+        description: "The folder where Magento will be installed"
+
+      magento_repository:
+        type: string
+        required: false
+        default: "https://mirror.mage-os.org/"
+        description: "Where to install Magento from"
+
+      matrix:
+        type: string
+        required: true
+        description: "The matrix of Magento versions to test against"
+
+      fail-fast:
+        type: boolean
+        required: false
+        default: true
+
+      test_command:
+        type: string
+        required: false
+        default: ../../../vendor/bin/phpunit
+        description: "The integration test command to run"
+
+      composer_cache_key:
+        type: string
+        required: false
+        default: ""
+        description: A key to version the composer cache. Can be incremented if you need to bust the cache.
+
+    secrets:
+      composer_auth:
+        required: false
+
+jobs:
+  api-functional-test:
+    name: ${{ matrix.magento }} API Functional Test
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: ${{ inputs.fail-fast }}
+      matrix: ${{ fromJSON(inputs.matrix) }}
+
+    services:
+      elasticsearch:
+        image: ${{ matrix.elasticsearch }}
+        env:
+          # By default, ElasticSearch refuses to spawn in single node configuration, as it expects redundancy.
+          # This is a dev environment, so redundancy is just wasteful.
+          discovery.type: single-node
+          # Disable HTTPS and password authentication
+          # this is a local dev environment, so the added CA chain complexity is an extreme overkill
+          xpack.security.enabled: false
+          xpack.security.http.ssl.enabled: false
+          xpack.security.transport.ssl.enabled: false
+        options: >-
+          --health-cmd "curl http://localhost:9200/_cluster/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 9200:9200
+
+      mysql:
+        image: ${{ matrix.mysql }}
+        env:
+          MYSQL_DATABASE: magento_functional_tests
+          MYSQL_USER: user
+          MYSQL_PASSWORD: password
+          MYSQL_ROOT_PASSWORD: rootpassword
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      rabbitmq:
+        image: ${{ matrix.rabbitmq }}
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set PHP Version
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v${{ matrix.composer }}
+          coverage: none
+
+      - run: composer create-project --repository-url="${{ inputs.magento_repository }}" "${{ matrix.magento }}" ${{ inputs.magento_directory }} --no-install
+        shell: bash
+        env:
+          COMPOSER_AUTH: ${{ secrets.composer_auth }}
+        name: Create Magento ${{ matrix.magento }} Project
+
+      - uses: mage-os/github-actions/get-magento-version@main
+        id: magento-version
+        with:
+          working-directory: ${{ inputs.magento_directory }}
+
+      - name: Get Composer Cache Directory
+        shell: bash
+        working-directory: ${{ inputs.magento_directory }}
+        id: composer-cache
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: "Cache Composer Packages"
+        uses: actions/cache@v3
+        with:
+          key: "composer | v5 | ${{ inputs.composer_cache_key }} | ${{ hashFiles('composer.lock') }} | ${{ matrix.os }} | ${{ matrix.composer }} | ${{ matrix.php }} | ${{ matrix.magento }}"
+          path: ${{ steps.composer-cache.outputs.dir }}
+
+      - run: composer config repositories.local path ${{ inputs.source_folder }}
+        name: Add Github Repo for Testing
+        working-directory: ${{ inputs.magento_directory }}
+        shell: bash
+        if: ${{ inputs.use_local_source == true }}
+
+      - run: composer require monolog/monolog:"<2.7.0" --no-update
+        name: Fixup Monolog (https://github.com/magento/magento2/pull/35596)
+        working-directory: ${{ inputs.magento_directory }}
+        if: |
+          steps.magento-version.outputs.version == '"2.4.4"'
+
+      - run: composer require "dotmailer/dotmailer-magento2-extension-package:4.6.0-p2 as 4.6.0" --no-update
+        name: Fixup Dotmailer (https://devdocs.magento.com/guides/v2.4/release-notes/release-notes-2-4-0-commerce.html#dotdigital-1)
+        working-directory: ${{ inputs.magento_directory }}
+        if: |
+          steps.magento-version.outputs.version == '"2.4.0"'
+
+      - run: |
+          composer config --no-interaction allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+          composer config --no-interaction allow-plugins.laminas/laminas-dependency-plugin true
+          composer config --no-interaction allow-plugins.magento/* true
+        name: Fixup Composer Plugins
+        working-directory: ${{ inputs.magento_directory }}
+        if: ${{ !startsWith(matrix.composer, '1') }}
+
+      - run: |
+          composer global require hirak/prestissimo
+        name: Install composer plugin for parallel downloads
+        working-directory: ${{ inputs.magento_directory }}
+        if: ${{ startsWith(matrix.composer, '1') }}
+
+      - run: composer require ${{ inputs.package_name }} "@dev" --no-update && composer install
+        name: Require and attempt install
+        working-directory: ${{ inputs.magento_directory }}
+        shell: bash
+        env:
+          COMPOSER_CACHE_DIR: ${{ steps.composer-cache.outputs.dir }}
+          COMPOSER_AUTH: ${{ secrets.composer_auth }}
+
+      - name: Replace Configuration Settings for env
+        working-directory: ${{ inputs.magento_directory }}/dev/tests/api-functional
+        run: |
+          cp phpunit_rest.xml.dist phpunit_rest.xml
+          cp config/install-config-mysql.php.dist config/install-config-mysql.php
+          sed -i 's/name="TESTS_MAGENTO_INSTALLATION" value="disabled"/name="TESTS_MAGENTO_INSTALLATION" value="enabled"/' phpunit_rest.xml
+          sed -i 's#http://magento.url#http://127.0.0.1:8082/index.php/#' phpunit_rest.xml
+          sed -i 's/value="admin"/value="Test Webservice User"/' phpunit_rest.xml
+          sed -i 's/value="123123q"/value="Test Webservice API key"/' phpunit_rest.xml
+          sed -i "s,http://localhost/,http://127.0.0.1:8082/index.php/," config/install-config-mysql.php
+          sed -i "s/'db-host'\s*=> 'localhost'/'db-host' => '127.0.0.1'/" config/install-config-mysql.php
+          sed -i "s/'db-user'\s*=> 'root'/'db-user' => 'user'/" config/install-config-mysql.php
+          sed -i "s/'db-password'\s*=> ''/'db-password' => 'password'/" config/install-config-mysql.php
+          sed -i "s/'elasticsearch-host'\s*=> 'localhost'/'elasticsearch-host' => '127.0.0.1'/" config/install-config-mysql.php
+
+      - run: |
+          php -S 127.0.0.1:8082 -t ./pub/ ./phpserver/router.php &
+          sleep 5
+          ${{ inputs.test_command }}
+        working-directory: ${{ inputs.magento_directory }}
+        name: Run API Functional Tests
