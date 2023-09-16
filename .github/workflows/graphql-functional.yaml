@@ -58,7 +58,7 @@ on:
 
 jobs:
   api-functional-test:
-    name: ${{ matrix.magento }} REST Test
+    name: ${{ matrix.magento }} GraphQL Test
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -181,21 +181,24 @@ jobs:
       - name: Replace Configuration Settings for env
         working-directory: ${{ inputs.magento_directory }}/dev/tests/api-functional
         run: |
-          cp phpunit_rest.xml.dist phpunit_rest.xml
-          cp config/install-config-mysql.php.dist config/install-config-mysql.php
-          sed -i 's/name="TESTS_MAGENTO_INSTALLATION" value="disabled"/name="TESTS_MAGENTO_INSTALLATION" value="enabled"/' phpunit_rest.xml
-          sed -i 's#http://magento.url#http://127.0.0.1:8082/index.php/#' phpunit_rest.xml
-          sed -i 's/value="admin"/value="Test Webservice User"/' phpunit_rest.xml
-          sed -i 's/value="123123q"/value="Test Webservice API key"/' phpunit_rest.xml
-          sed -i "s,http://localhost/,http://127.0.0.1:8082/index.php/," config/install-config-mysql.php
-          sed -i "s/'db-host'\s*=> 'localhost'/'db-host' => '127.0.0.1'/" config/install-config-mysql.php
-          sed -i "s/'db-user'\s*=> 'root'/'db-user' => 'user'/" config/install-config-mysql.php
-          sed -i "s/'db-password'\s*=> ''/'db-password' => 'password'/" config/install-config-mysql.php
-          sed -i "s/'elasticsearch-host'\s*=> 'localhost'/'elasticsearch-host' => '127.0.0.1'/" config/install-config-mysql.php
+          cp phpunit_graphql.xml.dist phpunit_graphql.xml
+          cp config/install-config-mysql.php.dist config/install-config-mysql-graphql.php
+
+          sed -i 's/name="TESTS_MAGENTO_INSTALLATION" value="disabled"/name="TESTS_MAGENTO_INSTALLATION" value="enabled"/' phpunit_graphql.xml
+          sed -i 's#http://magento.url#http://127.0.0.1:8082/index.php/#' phpunit_graphql.xml
+          sed -i 's/value="admin"/value="Test Webservice User"/' phpunit_graphql.xml
+          sed -i 's/value="123123q"/value="Test Webservice API key"/' phpunit_graphql.xml
+          sed -i 's,value="config/install-config-mysql.php",value="config/install-config-mysql-graphql.php",' phpunit_graphql.xml
+
+          sed -i "s,http://localhost/,http://127.0.0.1:8082/index.php/," config/install-config-mysql-graphql.php
+          sed -i "s/'db-host'\s*=> 'localhost'/'db-host' => '127.0.0.1'/" config/install-config-mysql-graphql.php
+          sed -i "s/'db-user'\s*=> 'root'/'db-user' => 'user'/" config/install-config-mysql-graphql.php
+          sed -i "s/'db-password'\s*=> ''/'db-password' => 'password'/" config/install-config-mysql-graphql.php
+          sed -i "s/'elasticsearch-host'\s*=> 'localhost'/'elasticsearch-host' => '127.0.0.1'/" config/install-config-mysql-graphql.php
 
       - run: |
           php -S 127.0.0.1:8082 -t ./pub/ ./phpserver/router.php &
           sleep 5
           ${{ inputs.test_command }}
         working-directory: ${{ inputs.magento_directory }}
-        name: Run API Functional Tests
+        name: Run GraphQL Functional Tests
