@@ -2,12 +2,6 @@ name: "Get Composer Version"
 author: "Graycore"
 description: " A Github Action that determines the currently installed version of Composer"
 
-inputs: 
-  working-directory: 
-    default: $GITHUB_WORKSPACE
-    description: "The current working directory of the action"
-    required: false
-
 outputs:
   version: # id of output
     description: 'The determined version of Composer'
@@ -18,7 +12,6 @@ runs:
   steps:
   - run: echo "::set-output name=version::$(composer --version | awk '{print $3}')"
     shell: bash
-    working-directory:  ${{ inputs.working-directory }}
     name: Compute Installed Composer version
     id: get-composer-version
 
