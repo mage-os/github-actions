@@ -76,7 +76,7 @@ runs:
 
     - name: TEST
       shell: bash
-      run: echo "RESULT OF VERSION COMPARISON ${{ steps.is-allow-plugins-available.outputs }}"
+      run: echo "RESULT OF VERSION COMPARISON ${{ toJSON(steps.is-allow-plugins-available.outputs) }}"
 
     - name: Enable dealerdirect/phpcodesniffer-composer-installer plugin
       shell: bash
