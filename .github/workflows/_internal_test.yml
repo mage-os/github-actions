@@ -1,0 +1,27 @@
+name: Test Actions
+
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+    preTest: 
+        runs-on: ubuntu-latest
+        outputs:
+          services: ${{ steps.services.outputs.serviceJson }}
+        steps:
+          - uses: actions/checkout@v3
+          - run: echo "serviceJson=$(cat .github/workflows/demo.json | jq -c)" >> "$GITHUB_OUTPUT"
+            id: services
+            shell: bash
+          
+            
+    test: 
+        runs-on: ubuntu-latest
+        needs: [preTest]
+        services: ${{ fromJson(needs.preTest.outputs.services ) }}
+        steps:
+        - run: echo "Hello"
+          shell: bash
+        
