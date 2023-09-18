@@ -68,7 +68,7 @@ runs:
 
     - name: Check if allow-plugins option is available for this version of composer
       shell: bash
-      run: php -r "if(version_compare('2.2', '${{ steps.get-composer-version.outputs.version }}') != 1 ) echo 'available=true'; else echo 'available=false';" >> $GITHUB_OUTPUT
+      run: php -r "if(version_compare('2.2', '${{ steps.get-composer-version.outputs.version }}') != 1 ) echo 'available=1'; else echo 'available=0';" >> $GITHUB_OUTPUT
       id: is-allow-plugins-available
 
     - name: TEST
@@ -79,7 +79,7 @@ runs:
       shell: bash
       working-directory: standard
       run: composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer  true --global
-      if: steps.is-allow-plugins-available.outputs.available == "true"
+      if: steps.is-allow-plugins-available.outputs.available == 1
 
     - name: Install Coding Standard
       shell: bash
