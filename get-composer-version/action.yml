@@ -10,7 +10,7 @@ outputs:
 runs:
   using: "composite"
   steps:
-  - run: echo "::set-output name=version::$(composer --version | awk '{print $3}')"
+  - run: echo "version=$(composer --version | awk '{print $3}')" >> $GITHUB_OUTPUT
     shell: bash
     name: Compute Installed Composer version
     id: get-composer-version
