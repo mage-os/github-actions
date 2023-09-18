@@ -75,7 +75,7 @@ runs:
       shell: bash
       working-directory: standard
       run: composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer  true --global
-      if: steps.is-allow-plugins-available.available
+      if: steps.is-allow-plugins-available.outputs.available
 
     - name: Install Coding Standard
       shell: bash
