@@ -12,16 +12,16 @@ inputs:
     description: "The version to compare against"
 
 outputs:
-  version: # id of output
+  result: # id of output
     description: 'The result of comparison'
     value: ${{ steps.semver-compare.outputs.result }}
 
 runs:
   using: "composite"
   steps:
-  - run: php -r "echo 'result=' . version_compare('${{ inputs.version }}', '${{ inputs.compare_against }}');" >> $GITHUB_OUTPUT
+  - name: Semantically compare two versions 
+    run: php -r "echo 'result=' . version_compare('${{ inputs.version }}', '${{ inputs.compare_against }}');" >> $GITHUB_OUTPUT
     shell: bash
-    name: Semantically compare two versions
     id: semver-compare
 
 branding:
