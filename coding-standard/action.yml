@@ -68,7 +68,7 @@ runs:
 
     - name: Check if allow-plugins option is available for this version of composer
       shell: bash
-      run: "php -r "echo version_compare('2.2', '${{ steps.get-composer-version.outputs.version }}') != 1 ? 'available=true' : 'available=false';" >> $GITHUB_OUTPUT"
+      run: php -r "if(version_compare('2.2', '${{ steps.get-composer-version.outputs.version }}') != 1 ) echo 'available=true'; else echo 'available=false';" >> $GITHUB_OUTPUT
       id: is-allow-plugins-available
 
     - name: Enable dealerdirect/phpcodesniffer-composer-installer plugin
