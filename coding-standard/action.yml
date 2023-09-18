@@ -71,10 +71,6 @@ runs:
       run: php -r "if(version_compare('2.2', '${{ steps.get-composer-version.outputs.version }}') != 1 ) echo 'available=1'; else echo 'available=0';" >> $GITHUB_OUTPUT
       id: is-allow-plugins-available
 
-    - name: TEST
-      shell: bash
-      run: echo "${{ steps.get-composer-version.outputs.version }} ${{ steps.is-allow-plugins-available.outputs.available}}"
-
     - name: Enable dealerdirect/phpcodesniffer-composer-installer plugin
       shell: bash
       working-directory: standard
