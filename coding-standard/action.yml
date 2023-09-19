@@ -37,9 +37,9 @@ inputs:
     default: ""
     description: "The minimum severity required to display an error"
 
-  fail_on_warnings:
-    description: 'Whether or not the action should fail on warnings, defaults to true (fails on warnings)'
-    default: true
+  ignore_warnings:
+    description: 'Whether or not the action should fail on warnings, defaults to false (fails on warnings)'
+    default: false
     required: false
 
 runs:
@@ -91,13 +91,13 @@ runs:
 
     - name: Testing
       shell: bash
-      run: echo "${{ inputs.fail_on_warnings }}, ${{ inputs.fail_on_warnings == false}}"
+      run: echo "${{ inputs.ignore_warnings }}, ${{ inputs.ignore_warnings == 'true'}}"
 
     - name: Set ignore warnings flag
       shell: bash
       working-directory: standard
       run: vendor/bin/phpcs --config-set ignore_warnings_on_exit 1
-      if: inputs.fail_on_warnings == false
+      if: inputs.ignore_warnings == 'true'
 
     - name: Get Changed Files
       shell: bash
