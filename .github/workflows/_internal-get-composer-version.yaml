@@ -32,7 +32,7 @@ jobs:
         id: composer-version
 
 
-      - name: Fail if key does not match
+      - name: Fail if versions do not match
         if: steps.composer-version.outputs.version != '2.4.2'
         shell: bash
         run: echo "${{ steps.composer-version.outputs.version }}" && exit 1
