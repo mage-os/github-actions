@@ -62,10 +62,22 @@ runs:
         tools: composer:v${{ inputs.composer_version }}
         coverage: none
 
+    - name: Get Composer Version
+      uses: vitaliy-golomoziy/mageos-github-actions/get-composer-version@testing
+      id: get-composer-version
+
+    - name: Check if allow-plugins option is available for this version of composer
+      uses: vitaliy-golomoziy/mageos-github-actions/semver-compare@testing
+      with:
+        version: 2.2
+        compare_against: ${{ steps.get-composer-version.outputs.version }}
+      id: is-allow-plugins-available
+
     - name: Enable dealerdirect/phpcodesniffer-composer-installer plugin
       shell: bash
       working-directory: standard
       run: composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer  true --global
+      if: steps.is-allow-plugins-available.outputs.result < 1
 
     - name: Install Coding Standard
       shell: bash
