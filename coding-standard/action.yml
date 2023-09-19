@@ -90,7 +90,7 @@ runs:
       run: vendor/bin/phpcs --config-set installed_paths ${{ github.workspace }}/standard/vendor/magento/magento-coding-standard,${{ github.workspace }}/standard/vendor/phpcompatibility/php-compatibility
 
     - name: Testing
-      hell: bash
+      shell: bash
       run: echo "${{ inputs.fail_on_warnings }}, ${{ inputs.fail_on_warnings == false}}"
 
     - name: Set ignore warnings flag
