@@ -63,11 +63,11 @@ runs:
         coverage: none
 
     - name: Get Composer Version
-      uses: vitaliy-golomoziy/mageos-github-actions/get-composer-version@main
+      uses: mage-os/github-actions/get-composer-version@main
       id: get-composer-version
 
     - name: Check if allow-plugins option is available for this version of composer
-      uses: vitaliy-golomoziy/mageos-github-actions/semver-compare@main
+      uses: mage-os/github-actions/semver-compare@main
       with:
         version: 2.2
         compare_against: ${{ steps.get-composer-version.outputs.version }}
