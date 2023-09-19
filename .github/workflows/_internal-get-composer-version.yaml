@@ -33,7 +33,7 @@ jobs:
 
 
       - name: Fail if key does not match
-        if: steps.composer-version.outputs.version != '"2.4.2"'
+        if: steps.composer-version.outputs.version != '2.4.2'
         shell: bash
         run: echo "${{ steps.composer-version.outputs.version }}" && exit 1
        
