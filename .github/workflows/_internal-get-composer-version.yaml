@@ -4,6 +4,7 @@ on:
   push:
     branches:
     - main
+    - testing
     paths:
     - ".github/workflows/_internal-get-composer-version.yaml"
     - "get-composer-version/**"
