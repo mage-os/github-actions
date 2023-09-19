@@ -89,10 +89,6 @@ runs:
       working-directory: standard
       run: vendor/bin/phpcs --config-set installed_paths ${{ github.workspace }}/standard/vendor/magento/magento-coding-standard,${{ github.workspace }}/standard/vendor/phpcompatibility/php-compatibility
 
-    - name: Testing
-      shell: bash
-      run: echo "${{ inputs.ignore_warnings }}, ${{ inputs.ignore_warnings == 'true'}}"
-
     - name: Set ignore warnings flag
       shell: bash
       working-directory: standard
