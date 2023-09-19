@@ -25,26 +25,26 @@ jobs:
 
       - uses: ./semver-compare
         id: version-compare-1
-	      with:
+        with:
           version: 2.2.3
           compare_against: 2.3
 
       - uses: ./semver-compare
         id: version-compare-2
-	      with:
+        with:
           version: 2
           compare_against: 2.0.1
 
       - uses: ./semver-compare
         id: version-compare-3
-  	    with:
+        with:
           version: 2.2
           compare_against: 2.2.1
 
 
       - uses: ./semver-compare
         id: version-compare-4
-	      with:
+        with:
           version: 2.2
           compare_against: 2.2.0
 
