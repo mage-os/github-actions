@@ -45,7 +45,7 @@ jobs:
       - uses: ./semver-compare
         id: version-compare-4
         with:
-          version: 2.2
+          version: 2.2.0
           compare_against: 2.2.0
 
       - name: Fail if 2.3 is not higher than 2.2.3
@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: echo "FAIL because 2.2.1 must be higher than 2.2 Compare 2.2.1 to 2.2 renders ${{ steps.version-compare-3.outputs.result }}" && exit 1
 
-      - name: Fail if 2.2.0 is not equals to 2.2
+      - name: Fail if 2.2.0 is not equals to 2.2.0
         if: steps.version-compare-1.outputs.result != 0
         shell: bash
-        run: echo "FAIL because 2.2 must be higher than 2.2.0 Compare 2.2 to 2.2.0 renders ${{ steps.version-compare-4.outputs.result }}" && exit 1
+        run: echo "FAIL because 2.2.0 must be equals to 2.2.0 Compare 2.2.0 to 2.2.0 renders ${{ steps.version-compare-4.outputs.result }}" && exit 1
