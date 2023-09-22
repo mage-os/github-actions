@@ -21,17 +21,17 @@ inputs:
   version:
     required: false
     description: "The version of the coding standard to use. If not provided, will use the latest version."
-    
+
   severity:
     required: false
     default: ""
     description: "The minimum severity required to display an error or warning (default: 5)"
-  
+
   warning_severity:
     required: false
     default: ""
     description: "The minimum severity required to display a warning"
-  
+
   error_severity:
     required: false
     default: ""
@@ -40,6 +40,16 @@ inputs:
   ignore_warnings:
     description: 'Whether or not the action should fail on warnings, defaults to false (fails on warnings)'
     default: 'false'
+    required: false
+
+  coding_standard:
+    description: 'The coding standard to use, defaults to Magento2'
+    default: 'Magento2'
+    required: false
+
+  custom_coding_standard_repo:
+    description: 'The repository to use for the coding standard, used if you want to use a custom coding standard'
+    default: ''
     required: false
 
 runs:
@@ -79,10 +89,15 @@ runs:
       run: composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer  true --global
       if: steps.is-allow-plugins-available.outputs.result < 1
 
-    - name: Install Coding Standard
+    - name: Install Magento2 Coding Standard
       shell: bash
       working-directory: standard
       run: composer require "magento/magento-coding-standard:${{ inputs.version || '*' }}"
+
+    - name: Install Custom Coding Standard
+      if: ${{ inputs.coding_standard_repo }}
+      shell: bash
+      run: composer require "${{ inputs.coding_standard_repo }}"
 
     - name: Register Coding Standard
       shell: bash
@@ -105,7 +120,8 @@ runs:
     - name: Coding Standard Check
       shell: bash
       run: |
-        ../standard/vendor/bin/phpcs --standard=Magento2 \
+        ../standard/vendor/bin/phpcs \
+        --standard="${{ inputs.coding_standard }}"
         $([ -n "${{ inputs.severity }}" ] && echo "--severity=${{ inputs.severity }}") \
         $([ -n "${{ inputs.warning_severity }}" ] && echo "--warning-severity=${{ inputs.warning_severity }}") \
         $([ -n "${{ inputs.error_severity }}" ] && echo "--error-severity=${{ inputs.error_severity }}") \
