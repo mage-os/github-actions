@@ -118,15 +118,11 @@ runs:
       run: echo "files=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | xargs)" >> $GITHUB_OUTPUT
       if: github.event_name == 'pull_request'
 
-    - name: Validate input
-      shell: bash
-      run: ls -la ${{ github.event_name == 'pull_request' && steps.changed-files.outputs.files || inputs.path }}
-
     - name: Coding Standard Check
       shell: bash
       run: |
         ../standard/vendor/bin/phpcs \
-        --standard="${{ inputs.coding_standard }}"
+        --standard="${{ inputs.coding_standard }}" \
         $([ -n "${{ inputs.severity }}" ] && echo "--severity=${{ inputs.severity }}") \
         $([ -n "${{ inputs.warning_severity }}" ] && echo "--warning-severity=${{ inputs.warning_severity }}") \
         $([ -n "${{ inputs.error_severity }}" ] && echo "--error-severity=${{ inputs.error_severity }}") \
