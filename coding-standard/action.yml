@@ -95,9 +95,9 @@ runs:
       run: composer require "magento/magento-coding-standard:${{ inputs.version || '*' }}"
 
     - name: Install Custom Coding Standard
-      if: ${{ inputs.coding_standard_repo }}
+      if: ${{ inputs.custom_coding_standard_repo }}
       shell: bash
-      run: composer require "${{ inputs.coding_standard_repo }}"
+      run: composer require "${{ inputs.custom_coding_standard_repo }}"
 
     - name: Register Coding Standard
       shell: bash
