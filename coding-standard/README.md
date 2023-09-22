@@ -30,4 +30,6 @@ jobs:
         severity: 8 # Optional, will use phpcs default of 5 if not specified.
         warning_severity: 4 # Optional, will use severity value if not specified.
         error_severity: 7 # Optional, will use severity value if not specified.
+        coding_standard: "Magento2"
+        custom_coding_standard_repo: "your/custom-repo"
 ```
