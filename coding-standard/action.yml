@@ -102,6 +102,7 @@ runs:
     - name: Install Custom Coding Standard
       if: ${{ inputs.custom_coding_standard_repo }}
       shell: bash
+      working-directory: standard
       run: composer require "${{ inputs.custom_coding_standard_repo }}"
 
     - name: Set ignore warnings flag
