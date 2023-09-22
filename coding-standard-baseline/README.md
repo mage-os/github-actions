@@ -32,4 +32,6 @@ jobs:
         warning_severity: "8"
         error_severity: "8"
         baseline_version: "*"
+        coding_standard: "Magento2"
+        custom_coding_standard_repo: "your/custom-repo"
 ```
