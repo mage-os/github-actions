@@ -89,6 +89,11 @@ runs:
       run: composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer  true --global
       if: steps.is-allow-plugins-available.outputs.result < 1
 
+    - name: Install composer require dealerdirect/phpcodesniffer-composer-installer
+      shell: bash
+      working-directory: standard
+      run: composer require dealerdirect/phpcodesniffer-composer-installer
+
     - name: Install Magento2 Coding Standard
       shell: bash
       working-directory: standard
@@ -98,11 +103,6 @@ runs:
       if: ${{ inputs.custom_coding_standard_repo }}
       shell: bash
       run: composer require "${{ inputs.custom_coding_standard_repo }}"
-
-    - name: Register Coding Standard
-      shell: bash
-      working-directory: standard
-      run: vendor/bin/phpcs --config-set installed_paths ${{ github.workspace }}/standard/vendor/magento/magento-coding-standard,${{ github.workspace }}/standard/vendor/phpcompatibility/php-compatibility
 
     - name: Set ignore warnings flag
       shell: bash
