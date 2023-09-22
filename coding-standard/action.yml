@@ -118,6 +118,10 @@ runs:
       run: echo "files=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | xargs)" >> $GITHUB_OUTPUT
       if: github.event_name == 'pull_request'
 
+    - name: Validate input
+      shell: bash
+      run: ls -la ${{ github.event_name == 'pull_request' && steps.changed-files.outputs.files || inputs.path }}
+
     - name: Coding Standard Check
       shell: bash
       run: |
