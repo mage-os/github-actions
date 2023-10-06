@@ -1,0 +1,64 @@
+name: "PHP Mess Detector"
+author: "David Lambauer"
+description: "A Github Action that runs the Magento PHPMD."
+
+inputs:
+  php_version:
+    required: true
+    default: "8.1"
+    description: "PHP version used to execute PHPMD."
+
+  composer_version:
+    required: true
+    default: "2"
+    description: "The version of composer to use."
+
+  path:
+    required: true
+    default: 'app/code'
+    description: "The directory (relative to the project root) in which PHPMD will be executed. Used when the event is not a pull request."
+
+  ruleset_path:
+    required: false
+    default: 'dev/tests/static/testsuite/Magento/Test/Php/_files/phpmd/ruleset.xml'
+    description: "The path to the ruleset.xml file."
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout Project
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        path: project
+
+    - name: Create Standard Directory
+      shell: bash
+      run: mkdir standard
+
+    - name: Set PHP Version
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php_version }}
+        tools: composer:v${{ inputs.composer_version }}
+        coverage: none
+
+    - name: Get Composer Version
+      uses: mage-os/github-actions/get-composer-version@main
+      id: get-composer-version
+
+    - name: Get Changed Files
+      shell: bash
+      working-directory: project
+      id: changed-files
+      run: echo "files=$(git diff --name-only --diff-filter=ACMRT ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | xargs)" >> $GITHUB_OUTPUT
+      if: github.event_name == 'pull_request'
+
+    - name: Coding Standard Check
+      shell: bash
+      run: |
+        ../standard/vendor/bin/phpmd \
+        ${{ github.event_name == 'pull_request' && steps.changed-files.outputs.files || inputs.path }} \
+        github \
+        ${{input.ruleset_path}}
+      working-directory: project
