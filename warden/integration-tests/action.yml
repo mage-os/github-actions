@@ -20,17 +20,17 @@ inputs:
 
   run_memory_test:
     required: true
-    default: "0"
+    default: false
     description: "Run Memory Test."
 
   run_magento_integration_tests:
     required: true
-    default: "1"
+    default: false
     description: "Run Magento Integration Tests."
 
   run_magento_integration_tests_real_suite:
     required: true
-    default: "1"
+    default: false
     description: "Run Magento Integration Tests Real Suite."
 
   base_directory:
@@ -134,7 +134,7 @@ runs:
         cat ${CONFIG_FILE}
 
     - name: Run Memory Test
-      if: ${{ inputs.run_memory_test == 1 }}
+      if: ${{ inputs.run_memory_test == true }}
       working-directory: ${{ inputs.base_directory }}
       shell: bash
       run: |
@@ -150,7 +150,7 @@ runs:
         "
 
     - name: Run Magento Integration Tests
-      if: ${{ inputs.run_magento_integration_tests == 1 }}
+      if: ${{ inputs.run_magento_integration_tests == true }}
       working-directory: ${{ inputs.base_directory }}
       shell: bash
       run: |
@@ -166,7 +166,7 @@ runs:
         "
 
     - name: Run Magento Integration Tests Real Suite
-      if: ${{ inputs.run_magento_integration_tests_real_suite == 1 }}
+      if: ${{ inputs.run_magento_integration_tests_real_suite == true }}
       working-directory: ${{ inputs.base_directory }}
       shell: bash
       run: |
