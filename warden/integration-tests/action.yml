@@ -19,16 +19,19 @@ inputs:
     description: "Redis version to use."
 
   run_memory_test:
+    type: 'boolean'
     required: true
     default: false
     description: "Run Memory Test."
 
   run_magento_integration_tests:
+    type: 'boolean'
     required: true
     default: false
     description: "Run Magento Integration Tests."
 
   run_magento_integration_tests_real_suite:
+    type: 'boolean'
     required: true
     default: false
     description: "Run Magento Integration Tests Real Suite."
@@ -134,7 +137,7 @@ runs:
         cat ${CONFIG_FILE}
 
     - name: Run Memory Test
-      if: ${{ inputs.run_memory_test == true }}
+      if: ${{ inputs.run_memory_test == 'true' }}
       working-directory: ${{ inputs.base_directory }}
       shell: bash
       run: |
@@ -150,7 +153,7 @@ runs:
         "
 
     - name: Run Magento Integration Tests
-      if: ${{ inputs.run_magento_integration_tests == true }}
+      if: ${{ inputs.run_magento_integration_tests == 'true' }}
       working-directory: ${{ inputs.base_directory }}
       shell: bash
       run: |
@@ -166,7 +169,7 @@ runs:
         "
 
     - name: Run Magento Integration Tests Real Suite
-      if: ${{ inputs.run_magento_integration_tests_real_suite == true }}
+      if: ${{ inputs.run_magento_integration_tests_real_suite == 'true' }}
       working-directory: ${{ inputs.base_directory }}
       shell: bash
       run: |
