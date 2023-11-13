@@ -1,7 +1,17 @@
 name: Integration Tests - Full Test Suite
 run-name: ${{ github.actor }} is running Full Integration Test Suite
+
 on:
-  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      repository:
+        type: string
+        description: "Repository"
+        required: true
+      head:
+        type: string
+        description: "head SHA"
+        required: true
 
 permissions:
   contents: write
@@ -18,10 +28,12 @@ jobs:
       http_cache_versions: ${{ steps.set-matrix.outputs.http_cache_versions }}
       testsuite_dirs: ${{ steps.set-matrix-testsuite.outputs.testsuite_dirs }}
     steps:
-      - name: Checkout PR commit
+      - name: Checkout commit
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          repository: ${{ github.event.inputs.repository }}
+          ref: ${{ github.event.inputs.head }}
+          fetch-depth: 1
 
       - id: set-matrix
         name: Calculate Matrix
@@ -115,10 +127,11 @@ jobs:
         testsuite_dirs: ${{ fromJSON(needs.matrix-calculator.outputs.testsuite_dirs) }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR commit
+      - name: Checkout commit
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          repository: ${{ github.event.inputs.repository }}
+          ref: ${{ github.event.inputs.head }}
           path: main
           fetch-depth: 0
 
@@ -191,10 +204,11 @@ jobs:
         http_cache_version: ${{ fromJSON(needs.matrix-calculator.outputs.http_cache_versions) }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR commit
+      - name: Checkout commit
         uses: actions/checkout@v3
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          repository: ${{ github.event.inputs.repository }}
+          ref: ${{ github.event.inputs.head }}
           path: main
           fetch-depth: 0
 
