@@ -52,7 +52,7 @@ jobs:
           OUTPUT_FILE="integration-testsuites.json"
           TESTSUITE_DIR="./testsuite/Magento"
           CODE_DIR="../../../app/code"
-          MAX_DIRS_PER_LINE=15
+          MAX_DIRS_PER_LINE=1
 
           # Initialize variables
           dir_count=0
@@ -157,17 +157,6 @@ jobs:
           run_magento_integration_tests: 0
           run_magento_integration_tests_real_suite: 0
           base_directory: "./main"
-
-      # TODO: this have to be removed after we analyse and fix all tests
-      # added now because it kills too many tests that are going to be running
-      - name: Skip invalid tests
-        working-directory: ./main
-        run: |
-          echo "Patch file dev/tests/integration/testsuite/Magento/Downloadable/Block/Sales/Order/Email/Items/Order/DownloadableTest.php"
-          echo "Add new line after line 47"
-          sed -i '47 a $this->markTestSkipped('"'"'TODO: skipped temporary due to execution errors'"'"');' dev/tests/integration/testsuite/Magento/Downloadable/Block/Sales/Order/Email/Items/Order/DownloadableTest.php
-          echo "Patch complete"
-          # here bash code that perform the patch ends
 
       - name: Create Mage-OS testsuite
         working-directory: ./main/dev/tests/integration
