@@ -12,6 +12,10 @@ on:
         type: string
         description: "head SHA"
         required: true
+      test_directory:
+        type: string
+        description: "Test directory to run integration tests"
+        required: false
 
 permissions:
   contents: write
@@ -49,6 +53,16 @@ jobs:
         name: Calculate Matrix for testsuite
         working-directory: dev/tests/integration
         run: |
+          
+          # check if ${{ github.event.inputs.test_directory }} is set
+          # then set ${{ github.event.inputs.test_directory }} as output and exit
+          # old output: echo "testsuite_dirs=$(jq -c .testsuites integration-testsuites.json)" >> "$GITHUB_OUTPUT"
+          
+          if [ -n "${{ github.event.inputs.test_directory }}" ]; then
+              echo "testsuite_dirs=['${{ github.event.inputs.test_directory }}']" >> "$GITHUB_OUTPUT"
+              exit 0
+          fi
+          
           OUTPUT_FILE="integration-testsuites.json"
           TESTSUITE_DIR="./testsuite/Magento"
           CODE_DIR="../../../app/code"
