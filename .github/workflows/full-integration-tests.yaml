@@ -68,7 +68,7 @@ jobs:
           EXCLUSION_LIST=("./testsuite/Magento/Catalog" "./testsuite/Magento/Bundle" "./testsuite/Magento/AsynchronousOperations")
 
           ## variable with array of exclusion list of files - separate run will be executed for each file (separate place in tests matrix)
-          STANDALONE_TESTS=("./testsuite/Magento/AsynchronousOperations/Model/MassScheduleTest.php")
+          STANDALONE_TESTS=("./testsuite/Magento/AsynchronousOperations/Model/MassScheduleTest.php" "./testsuite/Magento/Catalog/Observer/SwitchPriceAttributeScopeOnConfigChangeTest.php")
 
           # Initialize variables
           dir_count=0
