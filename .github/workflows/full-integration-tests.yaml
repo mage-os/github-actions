@@ -64,8 +64,11 @@ jobs:
           CODE_DIR="../../../app/code"
           MAX_DIRS_PER_LINE=1
           
-          ## variable with array of exclusion list of directories - they will be handled separately
+          ## variable with array of exclusion list of directories - they will be handled separately and splitted on more batches
           EXCLUSION_LIST=("./testsuite/Magento/Catalog" "./testsuite/Magento/Bundle")
+
+          ## variable with array of exclusion list of files - separate run will be executed for each file (separate place in tests matrix)
+          STANDALONE_TESTS=("./testsuite/Magento/AsynchronousOperations/Model/MassScheduleTest.php")
 
           # Initialize variables
           dir_count=0
@@ -111,15 +114,26 @@ jobs:
           EXCLUSION_LIST_FILES=()
           for dir in "${EXCLUSION_LIST[@]}"; do
             while IFS= read -r -d '' file; do
+                # check if file is in STANDALONE_TESTS
+                if [[ " ${STANDALONE_TESTS[@]} " =~ " ${file} " ]]; then
+                  continue
+                fi
                 EXCLUSION_LIST_FILES+=("$file")
-          done < <(find "$dir" -mindepth 1 -type f -name '*Test.php' -print0)
+            done < <(find "$dir" -mindepth 1 -type f -name '*Test.php' -print0)
           done
           
           ## run over EXCLUSION_LIST_FILES and call add_dir_to_line for each file
           MAX_DIRS_PER_LINE=10
           dir_count=0
           for file in "${EXCLUSION_LIST_FILES[@]}"; do
-          add_dir_to_line "$file"
+            add_dir_to_line "$file"
+          done
+          
+          ## run over STANDALONE_TESTS and call add_dir_to_line for each file
+          MAX_DIRS_PER_LINE=1
+          dir_count=0
+          for file in "${STANDALONE_TESTS[@]}"; do
+            add_dir_to_line "$file"
           done
           
           # Handle the last line if it's not empty
