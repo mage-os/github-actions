@@ -54,10 +54,6 @@ jobs:
         working-directory: dev/tests/integration
         run: |
           
-          # check if ${{ github.event.inputs.test_directory }} is set
-          # then set ${{ github.event.inputs.test_directory }} as output and exit
-          # old output: echo "testsuite_dirs=$(jq -c .testsuites integration-testsuites.json)" >> "$GITHUB_OUTPUT"
-          
           if [ -n "${{ github.event.inputs.test_directory }}" ]; then
               echo "testsuite_dirs=['${{ github.event.inputs.test_directory }}']" >> "$GITHUB_OUTPUT"
               exit 0
@@ -67,6 +63,9 @@ jobs:
           TESTSUITE_DIR="./testsuite/Magento"
           CODE_DIR="../../../app/code"
           MAX_DIRS_PER_LINE=1
+          
+          ## variable with array of exclusion list of directories - they will be handled separately
+          EXCLUSION_LIST=("./testsuite/Magento/Catalog" "./testsuite/Magento/Bundle")
 
           # Initialize variables
           dir_count=0
@@ -94,7 +93,11 @@ jobs:
 
           # Iterate over the directories and populate the JSON content
           while IFS= read -r -d '' dir; do
-          add_dir_to_line "${dir}"
+            # if dir is in EXCLUSION_LIST then skip it
+            if [[ " ${EXCLUSION_LIST[@]} " =~ " ${dir} " ]]; then
+              continue
+            fi
+            add_dir_to_line "${dir}"
           done < <(find "$TESTSUITE_DIR" -mindepth 1 -maxdepth 1 -type d -print0)
 
           # Add app/code integration test directories
@@ -102,7 +105,23 @@ jobs:
               relative_dir="${dir}" # Convert absolute path to relative
               add_dir_to_line "$relative_dir"
           done < <(find "$CODE_DIR" -mindepth 4 -maxdepth 4 -type d -name 'Integration' -print0)
-
+          
+          # Handle exclusion list
+          # run over EXCLUSION_LIST, find all "*Test.php" files, and put them in array. Exclude directories.
+          EXCLUSION_LIST_FILES=()
+          for dir in "${EXCLUSION_LIST[@]}"; do
+            while IFS= read -r -d '' file; do
+                EXCLUSION_LIST_FILES+=("$file")
+          done < <(find "$dir" -mindepth 1 -type f -name '*Test.php' -print0)
+          done
+          
+          ## run over EXCLUSION_LIST_FILES and call add_dir_to_line for each file
+          MAX_DIRS_PER_LINE=30
+          dir_count=0
+          for file in "${EXCLUSION_LIST_FILES[@]}"; do
+          add_dir_to_line "$file"
+          done
+          
           # Handle the last line if it's not empty
           if [ -n "$current_line" ]; then
           json_content="$json_content$current_line"
