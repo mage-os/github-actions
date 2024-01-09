@@ -65,7 +65,7 @@ jobs:
           MAX_DIRS_PER_LINE=1
           
           ## variable with array of exclusion list of directories - they will be handled separately and splitted on more batches
-          EXCLUSION_LIST=("./testsuite/Magento/Catalog" "./testsuite/Magento/Bundle")
+          EXCLUSION_LIST=("./testsuite/Magento/Catalog" "./testsuite/Magento/Bundle" "./testsuite/Magento/AsynchronousOperations")
 
           ## variable with array of exclusion list of files - separate run will be executed for each file (separate place in tests matrix)
           STANDALONE_TESTS=("./testsuite/Magento/AsynchronousOperations/Model/MassScheduleTest.php")
