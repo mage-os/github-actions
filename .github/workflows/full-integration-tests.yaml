@@ -53,6 +53,8 @@ jobs:
         name: Calculate Matrix for testsuite
         working-directory: dev/tests/integration
         run: |
+
+          ### TODO: rebuild all that hell to node-js
           
           if [ -n "${{ github.event.inputs.test_directory }}" ]; then
               echo "testsuite_dirs=['${{ github.event.inputs.test_directory }}']" >> "$GITHUB_OUTPUT"
@@ -65,7 +67,7 @@ jobs:
           MAX_DIRS_PER_LINE=1
           
           ## variable with array of exclusion list of directories - they will be handled separately and splitted on more batches
-          EXCLUSION_LIST=("./testsuite/Magento/Catalog" "./testsuite/Magento/Bundle" "./testsuite/Magento/AsynchronousOperations")
+          EXCLUSION_LIST=("./testsuite/Magento/Catalog" "./testsuite/Magento/Bundle" "./testsuite/Magento/AsynchronousOperations" "./testsuite/Magento/Sales")
 
           ## variable with array of exclusion list of files - separate run will be executed for each file (separate place in tests matrix)
           STANDALONE_TESTS=("./testsuite/Magento/AsynchronousOperations/Model/MassScheduleTest.php" "./testsuite/Magento/Catalog/Observer/SwitchPriceAttributeScopeOnConfigChangeTest.php")
@@ -123,7 +125,7 @@ jobs:
           done
           
           ## run over EXCLUSION_LIST_FILES and call add_dir_to_line for each file
-          MAX_DIRS_PER_LINE=10
+          MAX_DIRS_PER_LINE=20
           dir_count=MAX_DIRS_PER_LINE-1
           add_dir_to_line ""
           for file in "${EXCLUSION_LIST_FILES[@]}"; do
