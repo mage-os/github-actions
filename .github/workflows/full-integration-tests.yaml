@@ -125,7 +125,7 @@ jobs:
           done
           
           ## run over EXCLUSION_LIST_FILES and call add_dir_to_line for each file
-          MAX_DIRS_PER_LINE=20
+          MAX_DIRS_PER_LINE=10
           dir_count=MAX_DIRS_PER_LINE-1
           add_dir_to_line ""
           for file in "${EXCLUSION_LIST_FILES[@]}"; do
