@@ -1,3 +1,5 @@
+## Workflow is only for Magento 2 Main repo - app/code and dev/tests/integration are supported only
+## 3rd party modules are not supported yet
 name: Integration Tests - Full Test Suite
 run-name: ${{ github.actor }} is running Full Integration Test Suite
 
