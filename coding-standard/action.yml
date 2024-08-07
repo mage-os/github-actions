@@ -5,7 +5,7 @@ description: "A Github Action that runs the Magento Coding Standard."
 inputs:
   php_version:
     required: true
-    default: "8.1"
+    default: "8.3"
     description: "PHP version used to do the coding standard check."
 
   composer_version:
@@ -69,7 +69,7 @@ runs:
     - name: Check if allow-plugins option is available for this version of composer
       uses: mage-os/github-actions/semver-compare@main
       with:
-        version: 2.2
+        version: 2.7
         compare_against: ${{ steps.get-composer-version.outputs.version }}
       id: is-allow-plugins-available
 
