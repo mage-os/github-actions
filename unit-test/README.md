@@ -24,8 +24,8 @@ jobs:
     strategy:
       matrix:
         php_version:
-          - 7.4
-          - 8.1
+          - 8.2
+          - 8.3
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
