@@ -13,9 +13,13 @@ name: Magento setup:di:compile check
 on:
   push:
     branches:
+    - main
+  pull_request:
+    branches:
+    - main
 
 jobs:
-  coding-standard:
+  setup-di-compile:
     runs-on: ubuntu-latest
     steps:
     - uses: mage-os/github-actions/setup-di-compile@main
