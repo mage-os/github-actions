@@ -5,7 +5,7 @@ description: "A Github Action that runs bin/magento setup:di:compile."
 inputs:
   php_version:
     required: true
-    default: "8.1"
+    default: "8.3"
     description: "PHP version used to run setup:di:compile."
 
   composer_version:
