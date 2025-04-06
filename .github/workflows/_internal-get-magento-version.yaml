@@ -25,9 +25,9 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: 8.3
-          tools: composer:v2.7.7
+          tools: composer:v2.8.4
       
-      - run: composer create-project --repository-url="https://mirror.mage-os.org" "magento/project-community-edition:2.4.7-p2" ../magento2 --no-install
+      - run: composer create-project --repository-url="https://mirror.mage-os.org" "magento/project-community-edition:2.4.7-p4" ../magento2 --no-install
         shell: bash
         name: Create Magento ${{ matrix.magento }} Project 
 
@@ -37,7 +37,7 @@ jobs:
           working-directory:  ../magento2
 
       - name: Fail if key does not match
-        if: steps.magento-version.outputs.version != '"2.4.7-p2"'
+        if: steps.magento-version.outputs.version != '"2.4.7-p4"'
         shell: bash
         run: echo "${{ steps.magento-version.outputs.version }}" && exit 1
        

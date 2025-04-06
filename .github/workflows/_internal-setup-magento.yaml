@@ -114,12 +114,12 @@ jobs:
         php-version: 8.3
         tools: composer:v2
         mode: extension
-        magento_version: magento/project-community-edition:2.4.7-p2
+        magento_version: magento/project-community-edition:2.4.7-p4
 
     - uses: mage-os/github-actions/cache-magento@main
       with:
         mode: 'extension'
-        composer_cache_key: 'magento/project-community-edition:2.4.7-p2'
+        composer_cache_key: 'magento/project-community-edition:2.4.7-p4'
     
     - run: composer install
       name: Composer install

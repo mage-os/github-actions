@@ -63,7 +63,7 @@ jobs:
             php-version: 8.3
             tools: composer:v2
             mode: extension
-            magento_version: 2.4.7-p2
+            magento_version: 2.4.7-p4
 
         - run: composer config repositories.local path $GITHUB_WORKSPACE
           name: Add Github Repo for Testing

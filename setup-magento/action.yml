@@ -27,7 +27,7 @@ inputs:
 
   magento_version: 
     required: false
-    default: '~2.4.7-p2'
+    default: '~2.4.7-p4'
     description: "The version of Magento to use. This is only relevant if you are testing an extension."
 
   apply_fixes: 
