@@ -69,7 +69,7 @@ runs:
     - name: Check if allow-plugins option is available for this version of composer
       uses: mage-os/github-actions/semver-compare@main
       with:
-        version: 2.8
+        version: 2.2
         compare_against: ${{ steps.get-composer-version.outputs.version }}
       id: is-allow-plugins-available
 
