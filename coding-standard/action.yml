@@ -5,7 +5,7 @@ description: "A Github Action that runs the Magento Coding Standard."
 inputs:
   php_version:
     required: true
-    default: "8.1"
+    default: "8.3"
     description: "PHP version used to do the coding standard check."
 
   composer_version:
@@ -87,7 +87,7 @@ runs:
     - name: Register Coding Standard
       shell: bash
       working-directory: standard
-      run: vendor/bin/phpcs --config-set installed_paths ${{ github.workspace }}/standard/vendor/magento/magento-coding-standard,${{ github.workspace }}/standard/vendor/phpcompatibility/php-compatibility
+      run: vendor/bin/phpcs --config-set installed_paths ${{ github.workspace }}/standard/vendor/magento/magento-coding-standard,${{ github.workspace }}/standard/vendor/magento/php-compatibility-fork,${{ github.workspace }}/standard/vendor/phpcompatibility/php-compatibility
 
     - name: Set ignore warnings flag
       shell: bash

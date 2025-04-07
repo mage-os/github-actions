@@ -25,15 +25,15 @@ jobs:
       - name: Set PHP Version
         uses: shivammathur/setup-php@v2
         with:
-          php-version: 8.1
-          tools: composer:v2.4.2
+          php-version: 8.3
+          tools: composer:v2.8.4
       
       - uses: ./get-composer-version
         id: composer-version
 
 
       - name: Fail if versions do not match
-        if: steps.composer-version.outputs.version != '2.4.2'
+        if: steps.composer-version.outputs.version != '2.8.4'
         shell: bash
         run: echo "${{ steps.composer-version.outputs.version }}" && exit 1
        

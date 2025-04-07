@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./setup-magento
         with:
-          php-version: 8.1
+          php-version: 8.3
           tools: composer:v2
           mode: store
           working-directory: $GITHUB_WORKSPACE
@@ -60,10 +60,10 @@ jobs:
 
         - uses: ./setup-magento
           with:
-            php-version: 8.1
+            php-version: 8.3
             tools: composer:v2
             mode: extension
-            magento_version: 2.4.5-p1
+            magento_version: 2.4.7-p4
 
         - run: composer config repositories.local path $GITHUB_WORKSPACE
           name: Add Github Repo for Testing
