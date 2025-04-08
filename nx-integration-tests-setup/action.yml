@@ -91,8 +91,8 @@ runs:
       shell: bash
       run: |
         npm run generate-workspace -- --commands=test:unit,test:integration \
-          --test:unit='if [ -d {{ MODULE_PATH }}Test/Unit ]; then ${WARDEN} env exec -T php-fpm ./vendor/bin/phpunit -c dev/tests/unit/phpunit.xml {{ MODULE_PATH }}Test/Unit; else echo "{{ MODULE_NAME }} has no unit test; fi' \
-          --test:integration='${WARDEN} env exec -T --workdir /var/www/html/dev/tests/integration php-fpm ../../../vendor/bin/phpunit --configuration phpunit.xml.dist --testsuite '"'"'Magento Integration Tests Real Suite'"'"' --filter='"'"'/Magento/{{ MODULE_DIRECTORY }}/|Magento\\{{ MODULE_DIRECTORY }}'"'"' --log-junit=../../../phpunit-output/junit/{{ MODULE_DIRECTORY }}.xml --coverage-html=../../../phpunit-output/coverage-html/{{ MODULE_DIRECTORY }}'
+          --test:unit='if [ -d {{ MODULE_PATH }}Test/Unit ]; then ${WARDEN} env exec -T php-debug ./vendor/bin/phpunit -c dev/tests/unit/phpunit.xml {{ MODULE_PATH }}Test/Unit; else echo "{{ MODULE_NAME }} has no unit test; fi' \
+          --test:integration='${WARDEN} env exec -T --workdir /var/www/html/dev/tests/integration php-debug ../../../vendor/bin/phpunit --configuration phpunit.xml.dist --testsuite '"'"'Magento Integration Tests Real Suite'"'"' --filter='"'"'/Magento/{{ MODULE_DIRECTORY }}/|Magento\\{{ MODULE_DIRECTORY }}'"'"' --log-junit=../../../phpunit-output/junit/{{ MODULE_DIRECTORY }}.xml --coverage-html=../../../phpunit-output/coverage-html/{{ MODULE_DIRECTORY }}'
 
     - name: Print Affected
       working-directory: ./main
