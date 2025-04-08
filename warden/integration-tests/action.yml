@@ -142,13 +142,11 @@ runs:
       shell: bash
       run: |
         export WARDEN="$(dirname $(pwd))/warden/bin/warden"
-        ${WARDEN} env exec -T php-debug /bin/bash -c "cd ./dev/tests/integration
+        ${WARDEN} env exec -T php-fpm /bin/bash -c "cd ./dev/tests/integration
           echo -e '\033[32mRun Memory Tests\033[0m'
           php ../../../vendor/bin/phpunit \
             --configuration phpunit.xml.dist \
-            --coverage-clover=coverage.xml \
             --log-junit=test-results.xml \
-            --coverage-html=coverage \
             --testsuite 'Memory Usage Tests'
         "
 
@@ -158,13 +156,11 @@ runs:
       shell: bash
       run: |
         export WARDEN="$(dirname $(pwd))/warden/bin/warden"
-        ${WARDEN} env exec -T php-debug /bin/bash -c "cd ./dev/tests/integration
+        ${WARDEN} env exec -T php-fpm /bin/bash -c "cd ./dev/tests/integration
           echo -e '\033[32mRun Magento Integration Tests\033[0m'
           php ../../../vendor/bin/phpunit \
               --configuration phpunit.xml.dist \
-              --coverage-clover=coverage.xml \
               --log-junit=test-results.xml \
-              --coverage-html=coverage \
               --testsuite 'Magento Integration Tests'
         "
 
@@ -174,12 +170,10 @@ runs:
       shell: bash
       run: |
         export WARDEN="$(dirname $(pwd))/warden/bin/warden"
-        ${WARDEN} env exec -T php-debug /bin/bash -c "cd ./dev/tests/integration
+        ${WARDEN} env exec -T php-fpm /bin/bash -c "cd ./dev/tests/integration
               echo -e '\033[32mRun Magento Integration Tests Real Suite\033[0m'
               php ../../../vendor/bin/phpunit \
               --configuration phpunit.xml.dist \
-              --coverage-clover=coverage.xml \
               --log-junit=test-results.xml \
-              --coverage-html=coverage \
               --testsuite 'Magento Integration Tests Real Suite'
         "
