@@ -146,9 +146,7 @@ runs:
           echo -e '\033[32mRun Memory Tests\033[0m'
           php ../../../vendor/bin/phpunit \
             --configuration phpunit.xml.dist \
-            --coverage-clover=coverage.xml \
             --log-junit=test-results.xml \
-            --coverage-html=coverage \
             --testsuite 'Memory Usage Tests'
         "
 
@@ -162,9 +160,7 @@ runs:
           echo -e '\033[32mRun Magento Integration Tests\033[0m'
           php ../../../vendor/bin/phpunit \
               --configuration phpunit.xml.dist \
-              --coverage-clover=coverage.xml \
               --log-junit=test-results.xml \
-              --coverage-html=coverage \
               --testsuite 'Magento Integration Tests'
         "
 
@@ -178,8 +174,6 @@ runs:
               echo -e '\033[32mRun Magento Integration Tests Real Suite\033[0m'
               php ../../../vendor/bin/phpunit \
               --configuration phpunit.xml.dist \
-              --coverage-clover=coverage.xml \
               --log-junit=test-results.xml \
-              --coverage-html=coverage \
               --testsuite 'Magento Integration Tests Real Suite'
         "
