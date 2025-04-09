@@ -706,7 +706,7 @@
         "mysql": "mysql:8.0",
         "elasticsearch": "elasticsearch:8.5.3",
         "rabbitmq": "rabbitmq:3.13-management",
-        "redis": "redis:7.0",
+        "redis": "redis:7.2",
         "varnish": "varnish:7.3",
         "nginx": "nginx:1.22",
         "os": "ubuntu-latest",
