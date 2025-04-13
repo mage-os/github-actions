@@ -71,9 +71,14 @@ jobs:
           discovery.type: single-node
           # Disable HTTPS and password authentication
           # this is a local dev environment, so the added CA chain complexity is an extreme overkill
+          # ElasticSearch
           xpack.security.enabled: false
           xpack.security.http.ssl.enabled: false
           xpack.security.transport.ssl.enabled: false
+          # OpenSearch
+          plugins.security.disabled: true
+          plugins.security.ssl.http.enabled: false
+          plugins.security.ssl.transport.enabled: false
 
         options: >-
           --health-cmd "curl http://localhost:9200/_cluster/health"
