@@ -102,7 +102,7 @@
         "php": 8.4,
         "composer": "2.8.8",
         "mysql": "mariadb:11.4",
-        "elasticsearch": "opensearchproject/opensearch:2.19.1",
+        "opensearch": "opensearchproject/opensearch:2.19.1",
         "rabbitmq": "rabbitmq:4.0-management",
         "redis": "redis:7.2",
         "varnish": "varnish:7.6",

@@ -64,18 +64,33 @@ jobs:
       matrix: ${{ fromJSON(inputs.matrix) }}
     services:
       elasticsearch:
-        image: ${{ matrix.elasticsearch }}
+        image: ${{ matrix.elasticsearch || '' }}
         env:
           # By default, ElasticSearch refuses to spawn in single node configuration, as it expects redundancy.
           # This is a dev environment, so redundancy is just wasteful.
           discovery.type: single-node
           # Disable HTTPS and password authentication
           # this is a local dev environment, so the added CA chain complexity is an extreme overkill
-          # ElasticSearch
           xpack.security.enabled: false
           xpack.security.http.ssl.enabled: false
           xpack.security.transport.ssl.enabled: false
-          # OpenSearch
+
+        options: >-
+          --health-cmd "curl http://localhost:9200/_cluster/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 9200:9200
+
+      opensearch:
+        image: ${{ matrix.opensearch || '' }}
+        env:
+          # By default, ElasticSearch refuses to spawn in single node configuration, as it expects redundancy.
+          # This is a dev environment, so redundancy is just wasteful.
+          discovery.type: single-node
+          # Disable HTTPS and password authentication
+          # this is a local dev environment, so the added CA chain complexity is an extreme overkill
           plugins.security.disabled: true
           plugins.security.ssl.http.enabled: false
           plugins.security.ssl.transport.enabled: false
