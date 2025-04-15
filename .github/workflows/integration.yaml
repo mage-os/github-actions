@@ -110,7 +110,7 @@ jobs:
           MYSQL_ROOT_PASSWORD: rootpassword
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3 --disable-log-bin
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
 
       rabbitmq:
         image: ${{ matrix.rabbitmq }}
@@ -127,6 +127,10 @@ jobs:
         php-version: ${{ matrix.php }}
         tools: composer:v${{ matrix.composer }}
         coverage: none
+
+    - name: Allow SQL triggers
+      run: |
+        mysql --host 127.0.0.1 --port ${{ job.services.mysql.ports['3306'] }} -u$DB_USER -p$DB_PASSWORD -e "set global log_bin_trust_function_creators=1;"
 
     - run: composer create-project --repository-url="${{ inputs.magento_repository }}" "${{ matrix.magento }}" ${{ inputs.magento_directory }} --no-install
       shell: bash
