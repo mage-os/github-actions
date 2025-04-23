@@ -11,7 +11,7 @@
     "nginx": "nginx:1.26",
     "os": "ubuntu-latest",
     "release": "2023-10-10T00:00:00+0000",
-    "eol": "2025-04-07T00:00:00+0000"
+    "eol": "2025-04-14T00:00:00+0000"
   },
   "mage-os/project-community-edition:>=1.1 <1.2": {
     "magento": "mage-os/project-community-edition:>=1.1 <1.2",
@@ -25,7 +25,7 @@
     "nginx": "nginx:1.26",
     "os": "ubuntu-latest",
     "release": "2025-04-15T00:00:00+0000",
-    "eol": "2028-04-16T00:00:00+0000"
+    "eol": "2028-04-22T00:00:00+0000"
   },
   "mage-os/project-community-edition": {
     "magento": "mage-os/project-community-edition",
@@ -39,7 +39,7 @@
     "nginx": "nginx:1.26",
     "os": "ubuntu-latest",
     "release": "2025-04-15T00:00:00+0000",
-    "eol": "2028-04-16T00:00:00+0000"
+    "eol": "2028-04-22T00:00:00+0000"
   },
   "mage-os/project-community-edition:next": {
     "magento": "mage-os/project-community-edition:next",
@@ -53,6 +53,6 @@
     "nginx": "nginx:1.26",
     "os": "ubuntu-latest",
     "release": "2025-04-15T00:00:00+0000",
-    "eol": "2028-04-16T00:00:00+0000"
+    "eol": "2028-04-22T00:00:00+0000"
   }
 }
