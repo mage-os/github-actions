@@ -1,0 +1,50 @@
+name: Extract Repos and Create PRs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract-and-create-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch and extract data
+        id: extract
+        run: |
+          # Fetch the raw file content
+          content=$(curl -s https://raw.githubusercontent.com/mage-os/generate-mirror-repo-js/refs/heads/main/src/build-config/mageos-nightly-build-config.js)
+          
+          # Extract repoUrl and ref and store in a temporary file
+          echo "$content" | grep -E "repoUrl:|ref:" | awk -F"'" '{print $2}' | paste - - > repos_and_refs.txt
+          
+          # Display what we found
+          echo "Extracted repositories and refs:"
+          cat repos_and_refs.txt
+
+      - name: Create PRs for each repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.MAGE_OS_CI_TOKEN }}
+        run: |
+          # Read the temporary file line by line
+          while read -r repo ref; do
+            echo "Processing repository: $repo"
+            echo "Branch to merge: $ref"
+          
+            # Extract owner and repo name from the URL
+            repo_path=$(echo $repo | sed 's/https:\/\/github.com\///' | sed 's/\.git$//')
+            owner=$(echo $repo_path | cut -d'/' -f1)
+            repo_name=$(echo $repo_path | cut -d'/' -f2)
+          
+            # Create a PR using GitHub CLI
+            echo "Creating PR to merge $ref into release/1.x for $repo_name"
+          
+            # Use GitHub CLI to create the PR
+            # Note: This requires a properly scoped token with permissions to create PRs
+            gh pr create \
+              --repo $repo_path \
+              --base "release/1.x" \
+              --head "$ref" \
+              --title "Merge $ref into release/1.x" \
+              --body "This PR was automatically created to merge the $ref branch into the release/1.x branch."
+          
+            echo "---"
+          done < repos_and_refs.txt
