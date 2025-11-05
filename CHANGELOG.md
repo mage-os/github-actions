@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.1](https://github.com/mage-os/github-actions/compare/v1.7.0...v1.7.1) (2025-11-05)
+
+
+### Bug Fixes
+
+* allow matrix testing without EOL versions ([#299](https://github.com/mage-os/github-actions/issues/299)) ([ce264fc](https://github.com/mage-os/github-actions/commit/ce264fce26500bb510af0ec6f9cf21805def7f5c))
+
 ## [1.7.0](https://github.com/mage-os/github-actions/compare/v1.6.1...v1.7.0) (2025-04-09)
 
 
