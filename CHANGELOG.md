@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.2](https://github.com/mage-os/github-actions/compare/v1.7.1...v1.7.2) (2025-12-13)
+
+
+### Bug Fixes
+
+* 'invalid kind provided' when defining `usable` type ([#305](https://github.com/mage-os/github-actions/issues/305)) ([dcc08f9](https://github.com/mage-os/github-actions/commit/dcc08f9bdfbd27e6fb306e4b644a1deb5007b423))
+
 ## [1.7.1](https://github.com/mage-os/github-actions/compare/v1.7.0...v1.7.1) (2025-11-05)
 
 
