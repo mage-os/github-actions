@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.3](https://github.com/mage-os/github-actions/compare/v1.7.2...v1.7.3) (2025-12-30)
+
+
+### Bug Fixes
+
+* pin specific composer 2 versions for historic Magento releases ([#311](https://github.com/mage-os/github-actions/issues/311)) ([2c91044](https://github.com/mage-os/github-actions/commit/2c9104414c566df126c2e9bc8bd20b614a973bcf))
+* **supported-version:** handle semver-ish values from old magento verisons ([#309](https://github.com/mage-os/github-actions/issues/309)) ([b860bf9](https://github.com/mage-os/github-actions/commit/b860bf973e17cce91a7d730123b23632e3355574))
+
 ## [1.7.2](https://github.com/mage-os/github-actions/compare/v1.7.1...v1.7.2) (2025-12-13)
 
 
