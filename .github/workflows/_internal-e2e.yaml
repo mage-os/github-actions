@@ -34,6 +34,7 @@ jobs:
           id: supported-version
         - run: echo ${{ steps.supported-version.outputs.matrix }}
   e2e-workflow:
+    if: ${{ hashFiles('_test/demo-package/**') != '' }}
     needs: compute_matrix
     uses: ./.github/workflows/e2e.yaml
     with:
