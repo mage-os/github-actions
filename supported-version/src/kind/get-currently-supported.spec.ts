@@ -78,16 +78,21 @@ describe('getCurrentlySupportedVersions for magento-open-source', () => {
             'magento/project-community-edition:2.4.7-p8',
             'magento/project-community-edition:2.4.8-p3',
         ]],
+        ['2026-03-10T00:00:01Z', 'Day of March 2026 patch release', [
+            'magento/project-community-edition:2.4.6-p14',
+            'magento/project-community-edition:2.4.7-p9',
+            'magento/project-community-edition:2.4.8-p4',
+        ]],
         ['2026-03-15T00:00:00Z', 'Day after v2.4.6 EoL', [
-            'magento/project-community-edition:2.4.7-p8',
-            'magento/project-community-edition:2.4.8-p3',
+            'magento/project-community-edition:2.4.7-p9',
+            'magento/project-community-edition:2.4.8-p4',
         ]],
         ['2027-04-09T00:00:00Z', 'Day of v2.4.7 EoL', [
-            'magento/project-community-edition:2.4.7-p8',
-            'magento/project-community-edition:2.4.8-p3',
+            'magento/project-community-edition:2.4.7-p9',
+            'magento/project-community-edition:2.4.8-p4',
         ]],
         ['2027-04-10T00:00:00Z', 'Day after v2.4.7 EoL', [
-            'magento/project-community-edition:2.4.8-p3',
+            'magento/project-community-edition:2.4.8-p4',
         ]],
     ])(
         'supportedVersions for %s',
@@ -130,6 +135,9 @@ describe('getCurrentlySupportedVersions for mage-os', () => {
         ]],
         ['2025-09-09T00:00:01Z', 'Release of 1.3.1', [
             'mage-os/project-community-edition:1.3.1',
+        ]],
+        ['2026-03-10T00:00:01Z', 'Release of 2.2.0', [
+            'mage-os/project-community-edition:2.2.0',
         ]],
         ])(
         'supportedVersions for %s',
