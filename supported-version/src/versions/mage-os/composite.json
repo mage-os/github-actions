@@ -94,8 +94,8 @@
     "varnish": "varnish:7.6",
     "nginx": "nginx:1.26",
     "os": "ubuntu-latest",
-    "release": "2026-03-10T00:00:00+0000",
-    "eol": "2029-03-10T00:00:00+0000"
+    "release": "2026-03-18T00:00:00+0000",
+    "eol": "2029-03-18T00:00:00+0000"
   },
   "mage-os/project-community-edition": {
     "magento": "mage-os/project-community-edition",
@@ -108,8 +108,8 @@
     "varnish": "varnish:7.6",
     "nginx": "nginx:1.26",
     "os": "ubuntu-latest",
-    "release": "2026-03-10T00:00:00+0000",
-    "eol": "2029-03-10T00:00:00+0000"
+    "release": "2026-03-18T00:00:00+0000",
+    "eol": "2029-03-18T00:00:00+0000"
   },
   "mage-os/project-community-edition:next": {
     "magento": "mage-os/project-community-edition:next",
@@ -122,7 +122,7 @@
     "varnish": "varnish:7.6",
     "nginx": "nginx:1.26",
     "os": "ubuntu-latest",
-    "release": "2026-03-10T00:00:00+0000",
-    "eol": "2029-03-10T00:00:00+0000"
+    "release": "2026-03-18T00:00:00+0000",
+    "eol": "2029-03-18T00:00:00+0000"
   }
 }
