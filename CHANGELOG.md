@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.7.4](https://github.com/mage-os/github-actions/compare/v1.7.3...v1.7.4) (2026-04-16)
+
+
+### Bug Fixes
+
+* **supported-version:** filter uninstallable versions from usable kind ([#319](https://github.com/mage-os/github-actions/issues/319)) ([0590231](https://github.com/mage-os/github-actions/commit/0590231b6df72fcb90092721c14d45f9a073b5fd))
+
 ## [1.7.3](https://github.com/mage-os/github-actions/compare/v1.7.2...v1.7.3) (2025-12-30)
 
 
