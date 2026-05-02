@@ -22,7 +22,7 @@ outputs:
     description: "The Github Actions matrix of software technologies required to run Magento."
 
 runs:
-  using: "node20"
+  using: "node24"
   main: dist/index.js
 
 branding:
