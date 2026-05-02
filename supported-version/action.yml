@@ -17,6 +17,11 @@ inputs:
     description: "The specific custom versions of Magento that you want to use. Only applies when `kind` is `custom`"
     default: ""
 
+  include_services:
+    required: false
+    default: "true"
+    description: "Whether to include a `services` key in each matrix entry with GitHub Actions service configurations."
+
 outputs:
   matrix:
     description: "The Github Actions matrix of software technologies required to run Magento."
