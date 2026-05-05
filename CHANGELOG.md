@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.0.0](https://github.com/mage-os/github-actions/compare/v1.7.3...v2.0.0) (2026-05-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **coding-standard:** simplify action architecture ([#342](https://github.com/mage-os/github-actions/issues/342))
+* **supported-version:** bump node runtime to v24 ([#323](https://github.com/mage-os/github-actions/issues/323))
+
+### Features
+
+* **coding-standard:** simplify action architecture ([#342](https://github.com/mage-os/github-actions/issues/342)) ([bc96953](https://github.com/mage-os/github-actions/commit/bc969536f15f610aba956bd5b42b5d858eb1ca72))
+* **supported-version:** add recent kind ([#321](https://github.com/mage-os/github-actions/issues/321)) ([e2494ac](https://github.com/mage-os/github-actions/commit/e2494acd7923a39387a0f390caf71e9d8865a2e7))
+* **supported-version:** bump node runtime to v24 ([#323](https://github.com/mage-os/github-actions/issues/323)) ([2189663](https://github.com/mage-os/github-actions/commit/2189663060a881cb7369de054ab9e2d41e2bf377))
+* **supported-version:** revise v2.4.6-p14 eol for adjustments from adobe ([#325](https://github.com/mage-os/github-actions/issues/325)) ([378ec1b](https://github.com/mage-os/github-actions/commit/378ec1b16af3658a0581bb9521002d5142e51ac4))
+
+
+### Bug Fixes
+
+* **cache-magento:** address `set-output` deprecation ([#231](https://github.com/mage-os/github-actions/issues/231)) ([#326](https://github.com/mage-os/github-actions/issues/326)) ([2edb83e](https://github.com/mage-os/github-actions/commit/2edb83ea12a621ed98d44f8685431001060c6b6d))
+* **supported-version:** filter uninstallable versions from usable kind ([#319](https://github.com/mage-os/github-actions/issues/319)) ([0590231](https://github.com/mage-os/github-actions/commit/0590231b6df72fcb90092721c14d45f9a073b5fd))
+
 ## [1.7.3](https://github.com/mage-os/github-actions/compare/v1.7.2...v1.7.3) (2025-12-30)
 
 
