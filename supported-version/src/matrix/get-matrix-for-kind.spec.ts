@@ -47,6 +47,13 @@ describe('getMatrixForKind for mage-os', () => {
         expect(result.include).toBeDefined();
     });
     
+    it('returns a matrix for `recent`', () => {
+        const result = getMatrixForKind("recent", project);
+
+        expect(result.magento).toBeDefined();
+        expect(result.include).toBeDefined();
+    });
+
     it('errors for invalid `custom``', () => {
         expect(() => getMatrixForKind("custom", project)).toThrowError();
     });
@@ -99,6 +106,13 @@ describe('getMatrixForKind for magento-open-source', () => {
 
     it('returns a matrix for valid multiple `custom`', () => {
         const result = getMatrixForKind("custom", project, "magento/project-community-edition:2.4.2,magento/project-community-edition:2.4.3");
+
+        expect(result.magento).toBeDefined();
+        expect(result.include).toBeDefined();
+    });
+
+    it('returns a matrix for `recent`', () => {
+        const result = getMatrixForKind("recent", project);
 
         expect(result.magento).toBeDefined();
         expect(result.include).toBeDefined();

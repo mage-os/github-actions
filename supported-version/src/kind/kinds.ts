@@ -7,6 +7,7 @@ export const KNOWN_KINDS = {
     'custom': true,
     'usable': true,
     'nightly': true,
+    'recent': true,
     'all': true,
 }
 
