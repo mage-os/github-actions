@@ -95,7 +95,6 @@ jobs:
     
     - uses: mage-os/github-actions/cache-magento@main
       with:
-        mode: 'store'
         composer_cache_key:  '${{ matrix.magento }}'
 
     - run: composer install
