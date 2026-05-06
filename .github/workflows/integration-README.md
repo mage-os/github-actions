@@ -8,7 +8,7 @@ See the [integration.yaml](./integration.yaml)
 
 | Input              | Description                                                                                                                                     | Required | Default                       |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------- |
-| matrix             | JSON string of [version matrix for Magento](./#matrix-format)                                                                                   | true     | NULL                          |
+| matrix             | JSON string of [version matrix for Magento](./#matrix-format). Must include a `services` key (pass `include_services: true` to the supported-version action). | true     | NULL                          |
 | fail-fast          | Same as Github's [fail-fast](https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategyfail-fast) | false    | true                          |
 | package_name       | The name of the package                                                                                                                         | true     | NULL                          |
 | source_folder      | The source folder of the package                                                                                                                | false    | $GITHUB_WORKSPACE             |
