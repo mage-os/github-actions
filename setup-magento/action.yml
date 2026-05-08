@@ -45,6 +45,11 @@ inputs:
     default: "."
     description: "The working directory to run the action in."
 
+  composer_auth:
+    required: false
+    default: ""
+    description: "Composer authentication credentials (contents of auth.json as a JSON string)"
+
 outputs:
   path:
     description: "The absolute path to where Magento was set up."
@@ -83,6 +88,8 @@ runs:
       shell: bash
       name: Create Magento ${{ inputs.magento_version }} Project
       if: inputs.mode == 'extension'
+      env:
+        COMPOSER_AUTH: ${{ inputs.composer_auth }}
 
     - uses: mage-os/github-actions/fix-magento-install@main
       name: Fix Magento Out of Box Install Issues
