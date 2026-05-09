@@ -88,12 +88,30 @@ describe('getCurrentlySupportedVersions for magento-open-source', () => {
             'magento/project-community-edition:2.4.7-p9',
             'magento/project-community-edition:2.4.8-p4',
         ]],
-        ['2027-04-09T00:00:00Z', 'Day of v2.4.7 EoL', [
+        ['2026-05-11T00:00:00Z', 'Day before May 2026 patch release', [
+            'magento/project-community-edition:2.4.6-p14',
             'magento/project-community-edition:2.4.7-p9',
             'magento/project-community-edition:2.4.8-p4',
         ]],
+        ['2026-05-12T00:00:01Z', 'Day of May 2026 patch release', [
+            'magento/project-community-edition:2.4.6-p15',
+            'magento/project-community-edition:2.4.7-p10',
+            'magento/project-community-edition:2.4.8-p5',
+            'magento/project-community-edition:2.4.9',
+        ]],
+        ['2026-08-12T00:00:00Z', 'Day after v2.4.6 EoL', [
+            'magento/project-community-edition:2.4.7-p10',
+            'magento/project-community-edition:2.4.8-p5',
+            'magento/project-community-edition:2.4.9',
+        ]],
+        ['2027-04-09T00:00:00Z', 'Day of v2.4.7 EoL', [
+            'magento/project-community-edition:2.4.7-p10',
+            'magento/project-community-edition:2.4.8-p5',
+            'magento/project-community-edition:2.4.9',
+        ]],
         ['2027-04-10T00:00:00Z', 'Day after v2.4.7 EoL', [
-            'magento/project-community-edition:2.4.8-p4',
+            'magento/project-community-edition:2.4.8-p5',
+            'magento/project-community-edition:2.4.9',
         ]],
     ])(
         'supportedVersions for %s',
