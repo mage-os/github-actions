@@ -84,8 +84,8 @@ describe('getUsableVersions for mage-os', () => {
 
     it('should filter out mage-os 2.2.1 due to security advisory', () => {
         mockGetVersions.mockReturnValue({
-            'mage-os/project-community-edition:2.2.0': { composer: '2.9.3' },
-            'mage-os/project-community-edition:2.2.1': { composer: '2.9.3' }
+            'mage-os/project-community-edition:2.2.0': { composer: '2.9.7' },
+            'mage-os/project-community-edition:2.2.1': { composer: '2.9.7' }
         });
 
         const versions = getUsableVersions(project);
