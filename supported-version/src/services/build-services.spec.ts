@@ -111,12 +111,22 @@ describe('buildServicesForEntry', () => {
       expect(services.mysql.ports).toEqual(['3306:3306']);
     });
 
-    it('should include mysql health check options', () => {
-      const entry = createTestEntry();
+    it('should use healthcheck.sh for mariadb images', () => {
+      const entry = createTestEntry({ mysql: 'mariadb:11.4' });
       const services = buildServicesForEntry(entry);
 
       expect(services.mysql.options).toContain('--health-cmd');
       expect(services.mysql.options).toContain('healthcheck.sh --connect --innodb_initialized');
+      expect(services.mysql.options).not.toContain('mysqladmin');
+    });
+
+    it('should use mysqladmin ping for upstream mysql images', () => {
+      const entry = createTestEntry({ mysql: 'mysql:8.4' });
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mysql.options).toContain('--health-cmd');
+      expect(services.mysql.options).toContain('mysqladmin ping');
+      expect(services.mysql.options).not.toContain('healthcheck.sh');
     });
   });
 
