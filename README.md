@@ -33,3 +33,4 @@ Opinionated Github Actions and Workflows to make building, testing, and maintain
 | [Installation Test](./installation-test/README.md)     | A Github Action that tests the installability of a Magento Package                        |
 | [Semver Compare](./semver-compare/README.md)           | A Github Action that semantically compares two versions                                   |
 | [Supported Version](./supported-version/README.md)     | A Github Action that computes the currently supported Github Actions Matrix for Magento 2 |
+| [Setup Install](./setup-install/README.md)             | A Github Action that runs `bin/magento setup:install` from the supported-version services matrix |
