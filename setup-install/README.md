@@ -36,7 +36,7 @@ jobs:
       matrix: ${{ steps.supported-version.outputs.matrix }}
     steps:
       - uses: actions/checkout@v6
-      - uses: mage-os/github-actions-magento2/supported-version@main
+      - uses: mage-os/github-actions/supported-version@main
         id: supported-version
         with:
           include_services: "true"
@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: mage-os/github-actions-magento2/setup-magento@main
+      - uses: mage-os/github-actions/setup-magento@main
         id: setup-magento
         with:
           php-version: ${{ matrix.php }}
@@ -64,7 +64,7 @@ jobs:
         env:
           COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
 
-      - uses: mage-os/github-actions-magento2/setup-install@main
+      - uses: mage-os/github-actions/setup-install@main
         with:
           services: ${{ toJSON(matrix.services) }}
           path: ${{ steps.setup-magento.outputs.path }}
