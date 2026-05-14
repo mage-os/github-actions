@@ -116,7 +116,7 @@ describe('buildServicesForEntry', () => {
       const services = buildServicesForEntry(entry);
 
       expect(services.mysql.options).toContain('--health-cmd');
-      expect(services.mysql.options).toContain('mysqladmin ping');
+      expect(services.mysql.options).toContain('healthcheck.sh --connect --innodb_initialized');
     });
   });
 

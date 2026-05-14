@@ -15,7 +15,7 @@ export const mysqlConfig: ServiceTemplate = {
         MYSQL_ROOT_PASSWORD: 'rootpassword'
       },
       ports: ['3306:3306'],
-      options: '--health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3'
+      options: '--health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=10s --health-timeout=5s --health-retries=3'
     };
   }
 };
