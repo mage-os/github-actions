@@ -17,7 +17,7 @@ See the [action.yml](./action.yml)
 | project           | The project to return the supported versions for. Allowed values are `mage-os` and `magento-open-source`                                                      | false    | 'magento-open-source' |
 | custom_versions   | The versions you want to support, as a comma-separated string, i.e. 'magento/project-community-edition:2.3.7-p3, magento/project-community-edition:2.4.2-p2' | false    | ''                    |
 | recent_time_frame | The time frame (from today) used when `kind` is `recent`. Combination of years (y), months (m), and days (d), e.g. `2y 2m 2d`.                               | false    | '2y'                  |
-| include_services | Whether to include a `services` key in each matrix entry with GitHub Actions service container configurations for MySQL, search engine, RabbitMQ, and cache. | false    | 'true'                |
+| include_services | Whether to include a `services` key in each matrix entry with GitHub Actions service container configurations for the database (MySQL or MariaDB), search engine, RabbitMQ, and cache. | false    | 'true'                |
 
 ## Kinds
 - `currently-supported` - The currently supported Magento Open Source versions by Adobe.

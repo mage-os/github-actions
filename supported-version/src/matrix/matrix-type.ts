@@ -14,6 +14,7 @@ export interface PackageMatrixVersion {
     php: string | number,
     composer: string | number,
     mysql: string,
+    mariadb: string,
     elasticsearch: string,
     opensearch: string,
     rabbitmq: string,
