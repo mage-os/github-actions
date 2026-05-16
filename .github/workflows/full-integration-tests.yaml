@@ -242,8 +242,8 @@ jobs:
         working-directory: ./main
         run: |
           export WARDEN="$(dirname $(pwd))/warden/bin/warden"
-          # Important: Run the custom "Magento Integration Tests" test suite, which runs all other test suites
-          ${WARDEN} env exec -T --workdir /var/www/html/dev/tests/integration php-fpm ../../../vendor/bin/phpunit --configuration phpunit.xml.dist --testsuite 'Magento Integration Tests' --log-junit=../../../phpunit-output/junit/res-log.xml
+          # Run the "Mage-OS Suite" testsuite injected above, which contains this shard's directories
+          ${WARDEN} env exec -T --workdir /var/www/html/dev/tests/integration php-fpm ../../../vendor/bin/phpunit --configuration phpunit.xml.dist --testsuite 'Mage-OS Suite' --log-junit=../../../phpunit-output/junit/res-log.xml
 
   rum-memory-integration-tests:
     needs: [ matrix-calculator ]
