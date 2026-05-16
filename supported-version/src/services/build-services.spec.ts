@@ -6,6 +6,7 @@ const createTestEntry = (overrides: Partial<PackageMatrixVersion> = {}): Package
   php: '8.3',
   composer: '2.7.4',
   mysql: 'mysql:8.4',
+  mariadb: '',
   elasticsearch: 'elasticsearch:8.11.4',
   opensearch: 'opensearchproject/opensearch:2.19.1',
   rabbitmq: 'rabbitmq:4.0-management',
@@ -20,6 +21,62 @@ const createTestEntry = (overrides: Partial<PackageMatrixVersion> = {}): Package
 });
 
 describe('buildServicesForEntry', () => {
+  describe('database selection', () => {
+    it('should prefer mariadb when both are available', () => {
+      const entry = createTestEntry({ mariadb: 'mariadb:11.4' });
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mariadb).toBeDefined();
+      expect(services.mariadb.image).toBe('mariadb:11.4');
+      expect(services.mysql).toBeUndefined();
+    });
+
+    it('should fall back to mysql when mariadb is empty', () => {
+      const entry = createTestEntry();
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mysql).toBeDefined();
+      expect(services.mysql.image).toBe('mysql:8.4');
+      expect(services.mariadb).toBeUndefined();
+    });
+
+    it('should not include database when neither is available', () => {
+      const entry = createTestEntry({ mysql: '', mariadb: '' });
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mysql).toBeUndefined();
+      expect(services.mariadb).toBeUndefined();
+    });
+
+    it('should use healthcheck.sh for mariadb', () => {
+      const entry = createTestEntry({ mariadb: 'mariadb:11.4' });
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mariadb.options).toContain('--health-cmd');
+      expect(services.mariadb.options).toContain('healthcheck.sh');
+      expect(services.mariadb.options).toContain('--innodb_initialized');
+    });
+
+    it('should include correct mariadb env configuration', () => {
+      const entry = createTestEntry({ mariadb: 'mariadb:11.4' });
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mariadb.env).toEqual({
+        MYSQL_DATABASE: 'magento_integration_tests',
+        MYSQL_USER: 'user',
+        MYSQL_PASSWORD: 'password',
+        MYSQL_ROOT_PASSWORD: 'rootpassword'
+      });
+    });
+
+    it('should include correct mariadb ports', () => {
+      const entry = createTestEntry({ mariadb: 'mariadb:11.4' });
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mariadb.ports).toEqual(['3306:3306']);
+    });
+  });
+
   describe('search engine selection', () => {
     it('should prefer opensearch when both are available', () => {
       const entry = createTestEntry();
