@@ -224,7 +224,16 @@ jobs:
           echo "Debug: $DIRS"
           NEW_TESTSUITE_ENTRY=$(
             echo "<testsuite name=\"Mage-OS Suite\">"
-            IFS=','; for dir in $DIRS; do echo "  <directory>$dir</directory>"; done
+            IFS=','; for dir in $DIRS; do
+              # Trim whitespace introduced by JSON formatting
+              dir="${dir#"${dir%%[![:space:]]*}"}"
+              dir="${dir%"${dir##*[![:space:]]}"}"
+              # PHPUnit 12 validates is_dir() strictly: emit <file> for .php entries, <directory> otherwise
+              case "$dir" in
+                *.php) echo "  <file>$dir</file>" ;;
+                *)     echo "  <directory>$dir</directory>" ;;
+              esac
+            done
             echo "  <exclude>testsuite/Magento/IntegrationTest.php</exclude>"
             echo "</testsuite>"
           )
