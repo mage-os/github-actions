@@ -235,6 +235,22 @@ jobs:
               esac
             done
             echo "  <exclude>testsuite/Magento/IntegrationTest.php</exclude>"
+            # PHPUnit 12 treats abstract test classes discovered via <directory> as runner
+            # warnings (exit 1). Exclude any Abstract*Test.php files inside the included
+            # shards so only concrete tests load.
+            IFS=','
+            for dir in $DIRS; do
+              dir="${dir#"${dir%%[![:space:]]*}"}"
+              dir="${dir%"${dir##*[![:space:]]}"}"
+              case "$dir" in
+                *.php) continue ;;
+              esac
+              if [ -d "$dir" ]; then
+                find "$dir" -type f -name 'Abstract*Test.php' -print | while read -r abs_test; do
+                  echo "  <exclude>$abs_test</exclude>"
+                done
+              fi
+            done
             echo "</testsuite>"
           )
           echo "Debug: $NEW_TESTSUITE_ENTRY"
@@ -243,7 +259,7 @@ jobs:
           
           ## TODO: I want to have a possibility to NOT ignore those test if I wish to - by adding additional input to github actions, for example
           sed -i '/<testsuites>/i\<groups>\<exclude>\<group>integrationIgnore<\/group><\/exclude><\/groups>' "$FILE"
-          echo "\nIgnore group `integrationIgnore` has been added to $FILE \n"
+          echo "\nIgnore group 'integrationIgnore' has been added to $FILE \n"
           
           cat $FILE;
 
