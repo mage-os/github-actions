@@ -236,8 +236,8 @@ jobs:
             done
             echo "  <exclude>testsuite/Magento/IntegrationTest.php</exclude>"
             # PHPUnit 12 treats abstract test classes discovered via <directory> as runner
-            # warnings (exit 1). Exclude any Abstract*Test.php files inside the included
-            # shards so only concrete tests load.
+            # warnings (exit 1). Exclude any Abstract*Test.php or *AbstractTest.php files
+            # inside the included shards so only concrete tests load.
             IFS=','
             for dir in $DIRS; do
               dir="${dir#"${dir%%[![:space:]]*}"}"
@@ -246,7 +246,7 @@ jobs:
                 *.php) continue ;;
               esac
               if [ -d "$dir" ]; then
-                find "$dir" -type f -name 'Abstract*Test.php' -print | while read -r abs_test; do
+                find "$dir" -type f \( -name 'Abstract*Test.php' -o -name '*AbstractTest.php' \) -print | while read -r abs_test; do
                   echo "  <exclude>$abs_test</exclude>"
                 done
               fi
