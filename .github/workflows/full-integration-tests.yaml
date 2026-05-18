@@ -115,6 +115,8 @@ jobs:
           
           # Handle exclusion list
           # run over EXCLUSION_LIST, find all "*Test.php" files, and put them in array. Exclude directories.
+          # Skip abstract test base classes (Abstract*Test.php / *AbstractTest.php) — PHPUnit 12
+          # treats loading an abstract class as a runner warning, which produces exit 1.
           EXCLUSION_LIST_FILES=()
           for dir in "${EXCLUSION_LIST[@]}"; do
             while IFS= read -r -d '' file; do
@@ -123,7 +125,8 @@ jobs:
                   continue
                 fi
                 EXCLUSION_LIST_FILES+=("$file")
-            done < <(find "$dir" -mindepth 1 -type f -name '*Test.php' -print0)
+            done < <(find "$dir" -mindepth 1 -type f -name '*Test.php' \
+              ! -name 'Abstract*Test.php' ! -name '*AbstractTest.php' -print0)
           done
           
           ## run over EXCLUSION_LIST_FILES and call add_dir_to_line for each file
