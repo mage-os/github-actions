@@ -153,4 +153,4 @@ jobs:
         working-directory: ./main
         run: |
           export WARDEN="$(dirname $(pwd))/warden/bin/warden"
-          nx affected --target=test:integration --head=HEAD --base=remotes/origin/${{ inputs.pr_base }}
+          nx affected --target=test:integration --head=HEAD --base=remotes/origin/${{ inputs.pr_base }} --parallel=1
