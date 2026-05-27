@@ -111,6 +111,35 @@ runs:
         nx print-affected --head=HEAD --base=remotes/origin/${{ inputs.pr_base }} > ${AFFECTED_OUTPUT}
         echo "Affected Projects: $(jq .projects ${AFFECTED_OUTPUT})"
     
+    - name: Exclude abstract test base classes from phpunit.xml.dist
+      working-directory: ./main
+      shell: bash
+      run: |
+        # PHPUnit 12 emits a runner warning for abstract classes whose filename ends
+        # in Test.php, producing exit code 2 which Nx treats as failure.
+        # Mirror the find-based filter from the full-suite workflow (see PR #375).
+        PHPUNIT_CONFIG=dev/tests/integration/phpunit.xml.dist
+        TMPFILE=$(mktemp)
+
+        find dev/tests/integration/testsuite -type f \
+          \( -name 'Abstract*Test.php' -o -name '*AbstractTest.php' \) \
+          -print0 | sort -z | while IFS= read -r -d '' file; do
+            rel="${file#dev/tests/integration/}"
+            printf '            <exclude>%s</exclude>\n' "${rel}"
+          done > "${TMPFILE}"
+
+        awk -v excludes="${TMPFILE}" '
+          /Magento Integration Tests Real Suite/ { in_suite=1 }
+          in_suite && /<\/testsuite>/ {
+            while ((getline line < excludes) > 0) print line
+            in_suite=0
+          }
+          { print }
+        ' "${PHPUNIT_CONFIG}" > "${PHPUNIT_CONFIG}.tmp" \
+          && mv "${PHPUNIT_CONFIG}.tmp" "${PHPUNIT_CONFIG}"
+
+        rm "${TMPFILE}"
+
     - name: Project Cache
       uses: actions/cache/save@v3
       with:
