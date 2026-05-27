@@ -111,7 +111,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: main
-          key: ${{ runner.os }}-project-${{ inputs.ref }}
+          key: ${{ runner.os }}-project-${{ inputs.pr_head }}
       
       # could probably swap this to a docker container in future
       - name: Install NX
