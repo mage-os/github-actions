@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [2.0.0](https://github.com/mage-os/github-actions/compare/v1.7.3...v2.0.0) (2026-06-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **setup-magento:** Previously, when using setup-magento in extension mode, the magento 2 repo root was ../magento2 (outside of the extension folder). Due to interactions with `cache-magento` we need to keep magento inside the GITHUB_WORKSPACE (the root repo). We now do this in the `_ghamagento` folder. If you rely on the `steps.setup-magento.outputs.path` nothing changes for you. But, if you hardcoded the path, it's likely broken.
+* **coding-standard:** simplify action architecture ([#342](https://github.com/mage-os/github-actions/issues/342))
+* **supported-version:** bump node runtime to v24 ([#323](https://github.com/mage-os/github-actions/issues/323))
+
+### Features
+
+* **coding-standard:** simplify action architecture ([#342](https://github.com/mage-os/github-actions/issues/342)) ([bc96953](https://github.com/mage-os/github-actions/commit/bc969536f15f610aba956bd5b42b5d858eb1ca72))
+* **integration:** compute services from matrix ([#354](https://github.com/mage-os/github-actions/issues/354)) ([7c8ffc3](https://github.com/mage-os/github-actions/commit/7c8ffc399d5063e3f6e68195b0a8092a2bb0a520))
+* **setup-install:** create new action ([#349](https://github.com/mage-os/github-actions/issues/349)) ([efc18f2](https://github.com/mage-os/github-actions/commit/efc18f226172ee2189696810a4eec5849f6c02e1))
+* **setup-magento:** add composer_auth support ([#357](https://github.com/mage-os/github-actions/issues/357)) ([ce7a25a](https://github.com/mage-os/github-actions/commit/ce7a25a762b111aa7586a3f9c5de99bb558510fe))
+* **setup-magento:** align with upstream defaults ([#355](https://github.com/mage-os/github-actions/issues/355)) ([6e58a15](https://github.com/mage-os/github-actions/commit/6e58a15b0e7e5c9143e450a53104b1f41b7701c7))
+* **setup-magento:** change extension working dir to _ghamagento ([#367](https://github.com/mage-os/github-actions/issues/367)) ([f9f4ef4](https://github.com/mage-os/github-actions/commit/f9f4ef4b0b38fd0044568d20670626395a1d0893))
+* **setup-magento:** mkdir app/etc to allow prevent composer plugin crashing ([#368](https://github.com/mage-os/github-actions/issues/368)) ([f54dcc5](https://github.com/mage-os/github-actions/commit/f54dcc597c4ad781a7bb4ad7f815e0f71b258d4b))
+* **supported-version:** add Mage-OS 3.0.0 (Magento 2.4.9) ([#376](https://github.com/mage-os/github-actions/issues/376)) ([79e4317](https://github.com/mage-os/github-actions/commit/79e43176e4ae2dece2a8f3bbbda6988a984e1f1c))
+* **supported-version:** add Mage-OS 3.1.0 (Magento 2.4.9) ([e0c31ee](https://github.com/mage-os/github-actions/commit/e0c31eed9a0b25ea326321c7d68f3390d508e5ad))
+* **supported-version:** add recent kind ([#321](https://github.com/mage-os/github-actions/issues/321)) ([e2494ac](https://github.com/mage-os/github-actions/commit/e2494acd7923a39387a0f390caf71e9d8865a2e7))
+* **supported-version:** add services configuration ([#353](https://github.com/mage-os/github-actions/issues/353)) ([bf803e8](https://github.com/mage-os/github-actions/commit/bf803e8f7f06b3cddbd33893f4b5f94613f3e097))
+* **supported-version:** bump node runtime to v24 ([#323](https://github.com/mage-os/github-actions/issues/323)) ([2189663](https://github.com/mage-os/github-actions/commit/2189663060a881cb7369de054ab9e2d41e2bf377))
+* **supported-version:** revise v2.4.6-p14 eol for adjustments from adobe ([#325](https://github.com/mage-os/github-actions/issues/325)) ([378ec1b](https://github.com/mage-os/github-actions/commit/378ec1b16af3658a0581bb9521002d5142e51ac4))
+
+
+### Bug Fixes
+
+* **cache-magento:** address `set-output` deprecation ([#231](https://github.com/mage-os/github-actions/issues/231)) ([#326](https://github.com/mage-os/github-actions/issues/326)) ([2edb83e](https://github.com/mage-os/github-actions/commit/2edb83ea12a621ed98d44f8685431001060c6b6d))
+* **nx:** exclude abstract test base classes from phpunit.xml.dist at setup time ([#381](https://github.com/mage-os/github-actions/issues/381)) ([76da81b](https://github.com/mage-os/github-actions/commit/76da81b0575e1ecb0f7cfe9efd96137a5ba440f7))
+* **supported-version:** bump pinned Composer versions for GHSA-f9f8-rm49-7jv2 ([#362](https://github.com/mage-os/github-actions/issues/362)) ([603ebb6](https://github.com/mage-os/github-actions/commit/603ebb6a6d4731199dd1000aa890f5371c9cab2a))
+* **supported-version:** filter uninstallable versions from usable kind ([#319](https://github.com/mage-os/github-actions/issues/319)) ([0590231](https://github.com/mage-os/github-actions/commit/0590231b6df72fcb90092721c14d45f9a073b5fd))
+* **supported-version:** override mysql to mysql:8.4 for Mage-OS 3.0.0 ([#377](https://github.com/mage-os/github-actions/issues/377)) ([679f125](https://github.com/mage-os/github-actions/commit/679f1259748199894b5ac306ae9635d161b96687))
+* sync root package-lock.json with package.json ([#383](https://github.com/mage-os/github-actions/issues/383)) ([4b7fa36](https://github.com/mage-os/github-actions/commit/4b7fa36c3ed835e585958b1b8221d0f3d7521fbe))
+* **workflows:** also exclude *AbstractTest.php suffix from Mage-OS suite ([#374](https://github.com/mage-os/github-actions/issues/374)) ([bded228](https://github.com/mage-os/github-actions/commit/bded22865864a847b7588566660104343eaf2eb7))
+* **workflows:** also filter abstract test base classes out of matrix shards ([#375](https://github.com/mage-os/github-actions/issues/375)) ([3fd484a](https://github.com/mage-os/github-actions/commit/3fd484ad5df353728af1111b1d75639a136bae29))
+* **workflows:** emit &lt;file&gt; for .php entries in Mage-OS testsuite ([#372](https://github.com/mage-os/github-actions/issues/372)) ([6cacbc6](https://github.com/mage-os/github-actions/commit/6cacbc6aad786012af6a7753e22fc7b9a637a839))
+* **workflows:** exclude abstract test base classes from Mage-OS suite ([#373](https://github.com/mage-os/github-actions/issues/373)) ([eeb9ac2](https://github.com/mage-os/github-actions/commit/eeb9ac2cabf88c2b3afdeffb381decdf6b02462e))
+* **workflows:** run the Mage-OS Suite testsuite, not a removed one ([#371](https://github.com/mage-os/github-actions/issues/371)) ([8118ba2](https://github.com/mage-os/github-actions/commit/8118ba2c42cd4f86d608f8acc70966a2c593bb83))
+
 ## [1.7.3](https://github.com/mage-os/github-actions/compare/v1.7.2...v1.7.3) (2025-12-30)
 
 
