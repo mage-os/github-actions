@@ -4,6 +4,16 @@ export interface ServiceTemplate {
   getConfig(image: string): ServiceConfig;
 }
 
+// MariaDB 11.4 no longer ships the mysqladmin symlink, so `mysqladmin ping` can never
+// succeed there and the container is marked unhealthy even once the server is up. Its
+// images ship a healthcheck.sh helper instead, which is present in 10.6 and 10.11 too.
+// The Oracle mysql images have no such helper and still provide mysqladmin.
+function healthCommand(image: string): string {
+  return image.startsWith('mariadb:')
+    ? 'healthcheck.sh --connect --innodb_initialized'
+    : 'mysqladmin ping';
+}
+
 export const mysqlConfig: ServiceTemplate = {
   getConfig(image: string): ServiceConfig {
     return {
@@ -15,7 +25,7 @@ export const mysqlConfig: ServiceTemplate = {
         MYSQL_ROOT_PASSWORD: 'rootpassword'
       },
       ports: ['3306:3306'],
-      options: '--health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3'
+      options: `--health-cmd="${healthCommand(image)}" --health-interval=10s --health-timeout=5s --health-retries=3`
     };
   }
 };

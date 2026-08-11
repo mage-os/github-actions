@@ -118,6 +118,21 @@ describe('buildServicesForEntry', () => {
       expect(services.mysql.options).toContain('--health-cmd');
       expect(services.mysql.options).toContain('mysqladmin ping');
     });
+
+    it('should use healthcheck.sh for mariadb, which has no mysqladmin since 11.4', () => {
+      const entry = createTestEntry({ mysql: 'mariadb:11.4' });
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mysql.options).toContain('healthcheck.sh --connect --innodb_initialized');
+      expect(services.mysql.options).not.toContain('mysqladmin ping');
+    });
+
+    it('should use healthcheck.sh for older mariadb releases too', () => {
+      const entry = createTestEntry({ mysql: 'mariadb:10.6' });
+      const services = buildServicesForEntry(entry);
+
+      expect(services.mysql.options).toContain('healthcheck.sh --connect --innodb_initialized');
+    });
   });
 
   describe('rabbitmq configuration', () => {
