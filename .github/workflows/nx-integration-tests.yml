@@ -111,7 +111,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: main
-          key: ${{ runner.os }}-project-${{ inputs.ref }}
+          key: ${{ runner.os }}-project-${{ inputs.pr_head }}
       
       # could probably swap this to a docker container in future
       - name: Install NX
@@ -153,4 +153,4 @@ jobs:
         working-directory: ./main
         run: |
           export WARDEN="$(dirname $(pwd))/warden/bin/warden"
-          nx affected --target=test:integration --head=HEAD --base=remotes/origin/${{ inputs.pr_base }}
+          nx affected --target=test:integration --head=HEAD --base=remotes/origin/${{ inputs.pr_base }} --parallel=1
