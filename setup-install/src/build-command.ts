@@ -7,12 +7,16 @@ export interface ServiceConfig {
 
 export interface Services {
     mysql?: ServiceConfig;
+    mariadb?: ServiceConfig;
     opensearch?: ServiceConfig;
     elasticsearch?: ServiceConfig;
     rabbitmq?: ServiceConfig;
     redis?: ServiceConfig;
     valkey?: ServiceConfig;
 }
+
+export const getDatabaseService = (services: Services): ServiceConfig | undefined =>
+    services.mariadb ?? services.mysql;
 
 const BASE_ARGS = [
     '--base-url=http://localhost/',
@@ -24,9 +28,9 @@ const BASE_ARGS = [
     '--backend-frontname=admin',
 ];
 
-export const buildMysqlPrepArgs = (mysql: ServiceConfig): string[] => {
-    const rootPassword = mysql.env?.MYSQL_ROOT_PASSWORD ?? 'rootpassword';
-    const port = mysql.ports?.[0]?.split(':')[0] ?? '3306';
+export const buildMysqlPrepArgs = (database: ServiceConfig): string[] => {
+    const rootPassword = database.env?.MYSQL_ROOT_PASSWORD ?? 'rootpassword';
+    const port = database.ports?.[0]?.split(':')[0] ?? '3306';
     return ['-h127.0.0.1', `--port=${port}`, '-uroot', `-p${rootPassword}`, '-e', 'SET GLOBAL log_bin_trust_function_creators = 1;'];
 };
 
@@ -35,13 +39,14 @@ export const buildInstallArgs = (services: Services | null): string[] => {
 
     if (!services) return args;
 
-    if (services.mysql) {
-        const dbPort = services.mysql.ports?.[0]?.split(':')[0] ?? '3306';
+    const database = getDatabaseService(services);
+    if (database) {
+        const dbPort = database.ports?.[0]?.split(':')[0] ?? '3306';
         args.push(
             `--db-host=127.0.0.1:${dbPort}`,
-            `--db-name=${services.mysql.env?.MYSQL_DATABASE ?? 'magento'}`,
-            `--db-user=${services.mysql.env?.MYSQL_USER ?? 'magento'}`,
-            `--db-password=${services.mysql.env?.MYSQL_PASSWORD ?? 'magento'}`,
+            `--db-name=${database.env?.MYSQL_DATABASE ?? 'magento'}`,
+            `--db-user=${database.env?.MYSQL_USER ?? 'magento'}`,
+            `--db-password=${database.env?.MYSQL_PASSWORD ?? 'magento'}`,
         );
     }
 
