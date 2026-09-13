@@ -1,0 +1,65 @@
+name: E2E Test
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+    - main
+    paths:
+    - "_test/demo-package/**"
+    - ".github/workflows/_internal-e2e.yaml"
+    - ".github/workflows/e2e.yaml"
+    - "supported-version/**"
+    - "!(**/*.md)"
+  pull_request:
+    branches:
+    - main
+    paths:
+    - "_test/demo-package/**"
+    - ".github/workflows/_internal-e2e.yaml"
+    - ".github/workflows/e2e.yaml"
+    - "supported-version/**"
+    - "!(**/*.md)"
+
+jobs:
+  check-demo-package:
+    runs-on: ubuntu-latest
+    outputs:
+      exists: ${{ steps.check.outputs.exists }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if folder exists
+        id: check
+        run: |
+          if [ -d "_test/demo-package" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+  compute_matrix:
+      runs-on: ubuntu-latest
+      outputs:
+        matrix: ${{ steps.supported-version.outputs.matrix }}
+      steps:
+        - uses: actions/checkout@v4
+        - uses: ./supported-version
+          with:
+            kind: all
+          id: supported-version
+        - run: echo ${{ steps.supported-version.outputs.matrix }}
+  e2e-workflow:
+    if: needs.check-demo-package.outputs.exists == 'true'
+    needs: compute_matrix
+    uses: ./.github/workflows/e2e.yaml
+    with:
+      package_name: mage-os/magento2-demo-package
+      source_folder: $GITHUB_WORKSPACE/_test/demo-package
+      matrix: ${{ needs.compute_matrix.outputs.matrix }}
+      test_command: |
+        npx playwright test --grep "@setup" --trace on
+        npx playwright test --grep-invert "@setup" --trace on
+      fail-fast: false
