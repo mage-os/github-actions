@@ -1,5 +1,6 @@
 import { GithubActionsMatrix, PackageMatrixVersion } from "./matrix-type";
 import { getIndividualVersionsForProject, getCompositeVersionsForProject } from "../versions/get-versions-for-project";
+import { advisoryIgnoreIdsFor } from "../kind/advisory-affected";
 
 /**
  * Computes the GitHub Actions Matrix for given versions of Magento
@@ -16,7 +17,10 @@ export const getMatrixForVersions = (project: string, versions: string[]): Githu
 
         return {
             magento: [...acc.magento, current],
-            include: [...acc.include, knownVersions[current]]
+            include: [...acc.include, {
+                ...knownVersions[current],
+                ...(advisoryIgnoreIdsFor(current) ? { advisoryIgnoreIds: advisoryIgnoreIdsFor(current) } : {})
+            }]
         }
     }, {magento: [], include: []});
 }

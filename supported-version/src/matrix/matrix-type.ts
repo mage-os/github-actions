@@ -25,7 +25,8 @@ export interface PackageMatrixVersion {
     os: string,
     release: string,
     eol: string,
-    services?: Services
+    services?: Services,
+    advisoryIgnoreIds?: string
 }
 
 export interface GithubActionsMatrix {

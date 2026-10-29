@@ -73,6 +73,21 @@ jobs:
         magento_directory: ${{ env.PSEUDO_REPO_FOLDER }}
       if: steps.setup-magento-store-cache.outputs.cache-hit != 'true'
 
+    # Ignore only the advisories this version cannot resolve; see advisory-affected.ts.
+    - run: |
+        ids="${{ matrix.advisoryIgnoreIds }}"
+        if composer config --no-interaction policy.advisories.ignore-id $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via policy.advisories.ignore-id: $ids"
+        elif composer config --no-interaction audit.ignore $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via audit.ignore: $ids"
+        else
+          echo "This Composer version does not block advisory-affected versions; nothing to do"
+        fi
+      name: Ignore advisories that this version cannot resolve
+      shell: bash
+      working-directory: "${{ env.PSEUDO_REPO_FOLDER }}"
+      if: ${{ matrix.advisoryIgnoreIds != '' && steps.setup-magento-store-cache.outputs.cache-hit != 'true' }}
+
     - run: composer install
       shell: bash
       working-directory: "${{ env.PSEUDO_REPO_FOLDER }}"
@@ -97,6 +112,21 @@ jobs:
       with:
         composer_cache_key:  '${{ matrix.magento }}'
 
+    # Ignore only the advisories this version cannot resolve; see advisory-affected.ts.
+    - run: |
+        ids="${{ matrix.advisoryIgnoreIds }}"
+        if composer config --no-interaction policy.advisories.ignore-id $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via policy.advisories.ignore-id: $ids"
+        elif composer config --no-interaction audit.ignore $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via audit.ignore: $ids"
+        else
+          echo "This Composer version does not block advisory-affected versions; nothing to do"
+        fi
+      name: Ignore advisories that this version cannot resolve
+      shell: bash
+      working-directory: ${{ steps.setup-magento.outputs.path }}
+      if: ${{ matrix.advisoryIgnoreIds != '' }}
+
     - run: composer install
       name: Composer install
       shell: bash
@@ -119,6 +149,29 @@ jobs:
       with:
         mode: 'extension'
         composer_cache_key: 'magento/project-community-edition:2.4.7-p4'
+
+    # This job pins one version instead of taking a matrix, so the advisory ids come from a
+    # single-entry matrix rather than matrix.advisoryIgnoreIds. advisory-affected.ts stays the
+    # only place the exemption is recorded.
+    - uses: ./supported-version
+      id: advisories
+      with:
+        kind: custom
+        custom_versions: magento/project-community-edition:2.4.7-p4
+
+    - run: |
+        ids="${{ fromJSON(steps.advisories.outputs.matrix).include[0].advisoryIgnoreIds }}"
+        if composer config --no-interaction policy.advisories.ignore-id $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via policy.advisories.ignore-id: $ids"
+        elif composer config --no-interaction audit.ignore $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via audit.ignore: $ids"
+        else
+          echo "This Composer version does not block advisory-affected versions; nothing to do"
+        fi
+      name: Ignore advisories that this version cannot resolve
+      shell: bash
+      working-directory: ${{ steps.setup-magento.outputs.path }}
+      if: ${{ fromJSON(steps.advisories.outputs.matrix).include[0].advisoryIgnoreIds != '' }}
     
     - run: composer install
       name: Composer install

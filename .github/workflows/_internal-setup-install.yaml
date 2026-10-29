@@ -59,6 +59,22 @@ jobs:
       with:
         composer_cache_key: ${{ matrix.magento }}
 
+    # Must precede "Require extension": composer require --no-install still runs the solver.
+    # Ignores only the advisories this version cannot resolve; see advisory-affected.ts.
+    - run: |
+        ids="${{ matrix.advisoryIgnoreIds }}"
+        if composer config --no-interaction policy.advisories.ignore-id $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via policy.advisories.ignore-id: $ids"
+        elif composer config --no-interaction audit.ignore $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via audit.ignore: $ids"
+        else
+          echo "This Composer version does not block advisory-affected versions; nothing to do"
+        fi
+      name: Ignore advisories that this version cannot resolve
+      shell: bash
+      working-directory: ${{ steps.setup-magento.outputs.path }}
+      if: ${{ matrix.advisoryIgnoreIds != '' }}
+
     - name: Add extension repository
       working-directory: ${{ steps.setup-magento.outputs.path }}
       run: composer config repositories.local path ${{ github.workspace }}/_test/demo-package
