@@ -59,19 +59,8 @@ jobs:
       with:
         composer_cache_key: ${{ matrix.magento }}
 
-    - name: Add extension repository
-      working-directory: ${{ steps.setup-magento.outputs.path }}
-      run: composer config repositories.local path ${{ github.workspace }}/_test/demo-package
-
-    - name: Get package name
-      id: package
-      run: echo "name=$(jq -r .name ${{ github.workspace }}/_test/demo-package/composer.json)" >> $GITHUB_OUTPUT
-
-    - name: Require extension
-      working-directory: ${{ steps.setup-magento.outputs.path }}
-      run: composer require "${{ steps.package.outputs.name }}:@dev" --no-install
-
-    # Ignore only the advisories this version cannot resolve; see advisory-affected.ts.
+    # Must precede "Require extension": composer require --no-install still runs the solver.
+    # Ignores only the advisories this version cannot resolve; see advisory-affected.ts.
     - run: |
         ids="${{ matrix.advisoryIgnoreIds }}"
         if composer config --no-interaction policy.advisories.ignore-id $ids >/dev/null 2>&1; then
@@ -85,6 +74,18 @@ jobs:
       shell: bash
       working-directory: ${{ steps.setup-magento.outputs.path }}
       if: ${{ matrix.advisoryIgnoreIds != '' }}
+
+    - name: Add extension repository
+      working-directory: ${{ steps.setup-magento.outputs.path }}
+      run: composer config repositories.local path ${{ github.workspace }}/_test/demo-package
+
+    - name: Get package name
+      id: package
+      run: echo "name=$(jq -r .name ${{ github.workspace }}/_test/demo-package/composer.json)" >> $GITHUB_OUTPUT
+
+    - name: Require extension
+      working-directory: ${{ steps.setup-magento.outputs.path }}
+      run: composer require "${{ steps.package.outputs.name }}:@dev" --no-install
 
     - name: Composer install
       working-directory: ${{ steps.setup-magento.outputs.path }}
