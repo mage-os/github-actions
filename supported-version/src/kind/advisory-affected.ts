@@ -17,6 +17,9 @@ export const advisoryAffectedVersions: Record<string, string[]> = {
     'mage-os/project-community-edition:1.0.4': ['PKSA-w9tt-7782-78jx'],
     'mage-os/project-community-edition:1.0.5': ['PKSA-w9tt-7782-78jx'],
     'mage-os/project-community-edition:1.0.6': ['PKSA-w9tt-7782-78jx'],
+    // Magento 2.4.7-p10 pins the same constraint. Raising it would misrepresent what that
+    // release ships, and 2.4.8-p5 and 2.4.9 resolve above the affected range on their own.
+    'magento/project-community-edition:2.4.7-p10': ['PKSA-w9tt-7782-78jx'],
 };
 
 /**
