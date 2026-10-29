@@ -133,6 +133,28 @@ jobs:
       working-directory:  ${{ inputs.magento_directory }}
       if: ${{ startsWith(matrix.composer, '1') }}
 
+    # A frozen release pins dependencies it can never update, so advisories accumulate against
+    # them and Composer 2.9+ drops the affected packages from the solver pool, emptying it.
+    # Only the advisory IDs listed for this version in advisory-affected.ts are ignored, so
+    # every other advisory still blocks and a new one shows up as a failed install.
+    # The key is policy.advisories.ignore-id on Composer 2.10+ and audit.ignore from 2.4 to
+    # 2.9; neither exists on 2.2.x, which does not block advisories at all. Under GitHub
+    # Actions Composer reports an unknown key as an ::error:: annotation on stdout, so both
+    # streams are silenced to keep a missing key from looking fatal.
+    - run: |
+        ids="${{ matrix.advisoryIgnoreIds }}"
+        if composer config --no-interaction policy.advisories.ignore-id $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via policy.advisories.ignore-id: $ids"
+        elif composer config --no-interaction audit.ignore $ids >/dev/null 2>&1; then
+          echo "Ignoring advisories via audit.ignore: $ids"
+        else
+          echo "Composer ${{ matrix.composer }} does not block advisory-affected versions; nothing to do"
+        fi
+      name: Ignore advisories that this version cannot resolve
+      working-directory:  ${{ inputs.magento_directory }}
+      shell: bash
+      if: ${{ matrix.advisoryIgnoreIds != '' }}
+
     - run: composer require ${{ inputs.package_name }} "@dev" --no-update && composer install
       name: Require and attempt install
       working-directory:  ${{ inputs.magento_directory }}
