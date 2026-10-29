@@ -15,6 +15,11 @@ describe('advisoryIgnoreIdsFor', () => {
             .toBe('PKSA-w9tt-7782-78jx');
     });
 
+    it('returns the advisory ids for the version the extension self-test pins', () => {
+        expect(advisoryIgnoreIdsFor('magento/project-community-edition:2.4.7-p4'))
+            .toBe('PKSA-w9tt-7782-78jx');
+    });
+
     it('leaves currently supported magento versions that resolve on their own unlisted', () => {
         expect(advisoryIgnoreIdsFor('magento/project-community-edition:2.4.8-p5')).toBe('');
         expect(advisoryIgnoreIdsFor('magento/project-community-edition:2.4.9')).toBe('');
