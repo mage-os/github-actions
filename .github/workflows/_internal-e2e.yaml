@@ -38,7 +38,7 @@ jobs:
       # opens all have to agree, so they are derived from one place.
       TRAEFIK_DOMAIN: mageos.test
       TRAEFIK_SUBDOMAIN: app
-      E2E_DIRECTORY: _test/demo-package/Test/e2e
+      E2E_DIRECTORY: actions/_test/demo-package/Test/e2e
       # Pinned rather than taken from supported-version: this workflow is here
       # to tell us whether the action still serves a store, so a service bump
       # elsewhere should not change what it reports. The release pipeline picks
@@ -46,14 +46,19 @@ jobs:
       PHP_VERSION: "8.4"
       COMPOSER_VERSION: "2.10.2"
     steps:
+    # Not at the workspace root: warden/setup-environment checks the Warden
+    # CLI out into warden/ there, which is where this repository keeps that
+    # action, and the checkout would land on top of it.
     - uses: actions/checkout@v6
+      with:
+        path: actions
 
     # mode: extension is how the other internal workflows get a project onto
     # disk -- composer create-project --no-install, into ./_ghamagento. The
     # dependencies are then installed inside the container, by the PHP version
     # that will serve them.
     - name: Create the Mage-OS project
-      uses: ./setup-magento
+      uses: ./actions/setup-magento
       with:
         php-version: ${{ env.PHP_VERSION }}
         tools: "composer:v2"
@@ -63,7 +68,7 @@ jobs:
 
     - name: Serve the store in Warden
       id: warden
-      uses: ./warden/setup-environment
+      uses: ./actions/warden/setup-environment
       with:
         base_directory: "./_ghamagento"
         php_version: ${{ env.PHP_VERSION }}
