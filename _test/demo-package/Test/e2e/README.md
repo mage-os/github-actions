@@ -37,5 +37,28 @@ fails against something that should not pass:
 | A stylesheet parsed into CSS rules | A store whose `pub/static` was never deployed |
 
 Before changing an assertion, check that it still fails for the reason it was
-written -- point `PLAYWRIGHT_BASE_URL` at the admin URL, or clear `pub/static`,
-and watch the step go red.
+written. Do that with a throwaway spec, not by repointing `PLAYWRIGHT_BASE_URL`
+at the admin URL: a base URL with a path in it will not do what you expect,
+because `page.goto("/")` resolves against the origin and drops the path, so you
+end up testing the homepage again and watching it pass.
+
+```ts
+// negative-control.spec.ts -- delete it afterwards
+import { test, expect } from "@playwright/test";
+
+test("the admin login page must not satisfy the homepage assertions", async ({ page }) => {
+    const response = await page.goto("/admin"); // your backend frontName
+    expect(response?.status()).toBe(200);       // it answers 200 -- that is the point
+    await expect(page.locator("body")).toHaveClass(/cms-index-index/);
+});
+```
+
+Against a real store that fails on the body class alone, with the 200 and the
+stylesheets both satisfied:
+
+```
+Expected pattern: /cms-index-index/
+Received string:  "m137-admin-theme adminhtml-auth-login page-layout-admin-login"
+```
+
+For the static content assertion, clear `pub/static` and reload.
