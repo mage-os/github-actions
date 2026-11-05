@@ -47,6 +47,24 @@ before one can reach the storefront, and all three are off by default:
     E2E_BASE_URL: ${{ steps.warden.outputs.base_url }}
 ```
 
+## Where the action puts things
+
+The action checks the Warden CLI out into `warden/` **at the workspace root**,
+and every step then calls it as `$(dirname $(pwd))/warden/bin/warden`. Two
+consequences:
+
+- `base_directory` has to be exactly one level below the workspace root.
+- a repository checked out at the workspace root that has a `warden/`
+  directory of its own will have it overwritten -- including this one. Check
+  such a repository out into a subdirectory instead:
+
+  ```yaml
+  - uses: actions/checkout@v6
+    with:
+      path: actions
+  - uses: ./actions/warden/setup-environment
+  ```
+
 ## Inputs
 
 | Name | Default | Description |
