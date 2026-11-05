@@ -1,0 +1,121 @@
+name: E2E Test
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+    - main
+    paths:
+    - "_test/demo-package/Test/e2e/**"
+    - "warden/**"
+    - "setup-magento/**"
+    - ".github/workflows/_internal-e2e.yaml"
+    - "!(**/*.md)"
+  pull_request:
+    branches:
+    - main
+    paths:
+    - "_test/demo-package/Test/e2e/**"
+    - "warden/**"
+    - "setup-magento/**"
+    - ".github/workflows/_internal-e2e.yaml"
+    - "!(**/*.md)"
+
+# Standing up the whole stack costs a runner for a while; there is no reason to
+# keep paying for a run whose commit has already been superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  storefront-smoke-test:
+    name: "storefront smoke test"
+    if: "!startsWith(github.head_ref, 'release-please')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # setup:install, the hostname the runner resolves and the URL the browser
+      # opens all have to agree, so they are derived from one place.
+      TRAEFIK_DOMAIN: mageos.test
+      TRAEFIK_SUBDOMAIN: app
+      E2E_DIRECTORY: _test/demo-package/Test/e2e
+      # Pinned rather than taken from supported-version: this workflow is here
+      # to tell us whether the action still serves a store, so a service bump
+      # elsewhere should not change what it reports. The release pipeline picks
+      # its own versions.
+      PHP_VERSION: "8.4"
+      COMPOSER_VERSION: "2.10.2"
+    steps:
+    - uses: actions/checkout@v6
+
+    # mode: extension is how the other internal workflows get a project onto
+    # disk -- composer create-project --no-install, into ./_ghamagento. The
+    # dependencies are then installed inside the container, by the PHP version
+    # that will serve them.
+    - name: Create the Mage-OS project
+      uses: ./setup-magento
+      with:
+        php-version: ${{ env.PHP_VERSION }}
+        tools: "composer:v2"
+        mode: extension
+        magento_repository: "https://repo.mage-os.org/"
+        magento_version: "mage-os/project-community-edition:4.0.0"
+
+    - name: Serve the store in Warden
+      id: warden
+      uses: ./warden/setup-environment
+      with:
+        base_directory: "./_ghamagento"
+        php_version: ${{ env.PHP_VERSION }}
+        composer_version: ${{ env.COMPOSER_VERSION }}
+        database: "mariadb:11.8"
+        search: "opensearch:3.4"
+        rabbitmq: "rabbitmq:4.2"
+        redis: "redis:7.4"
+        varnish: "varnish:8.0"
+        run_composer_install: 1
+        run_setup_install: 1
+        run_admin_user_creation: 1
+        run_magento_config_preset: 1
+        run_reindex: 1
+        traefik_domain: ${{ env.TRAEFIK_DOMAIN }}
+        traefik_subdomain: ${{ env.TRAEFIK_SUBDOMAIN }}
+        # The three inputs a browser needs, and nothing a PHPUnit suite pays for.
+        base_url: "https://${{ env.TRAEFIK_SUBDOMAIN }}.${{ env.TRAEFIK_DOMAIN }}/"
+        configure_host_resolution: 1
+        run_static_content_deploy: 1
+        static_content_themes: "Magento/luma"
+
+    # Separate from the test run so that "the store was never reachable" and
+    # "the store rendered the wrong thing" are different red steps.
+    - name: Confirm the store answers on the resolved hostname
+      run: curl --silent --show-error --fail --insecure --head "${{ steps.warden.outputs.base_url }}" | head -1
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: ${{ env.E2E_DIRECTORY }}/package-lock.json
+
+    - name: Install Playwright
+      working-directory: ${{ env.E2E_DIRECTORY }}
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+
+    - name: Run the storefront smoke test
+      working-directory: ${{ env.E2E_DIRECTORY }}
+      env:
+        PLAYWRIGHT_BASE_URL: ${{ steps.warden.outputs.base_url }}
+      run: npx playwright test
+
+    - name: Upload the Playwright report
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: |
+          ${{ env.E2E_DIRECTORY }}/playwright-report
+          ${{ env.E2E_DIRECTORY }}/test-results
+        retention-days: 7
+        if-no-files-found: ignore
