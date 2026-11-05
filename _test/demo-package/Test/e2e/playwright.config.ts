@@ -31,7 +31,11 @@ export default defineConfig({
         ignoreHTTPSErrors: true,
         navigationTimeout: 90_000,
         actionTimeout: 20_000,
-        trace: 'on-first-retry',
+        // retain-on-failure, not on-first-retry: the first failure is the one
+        // that has to carry its own evidence. A release gate that fails is
+        // read by someone deciding whether to ship, and "re-run it and watch"
+        // is not an answer at that point.
+        trace: 'retain-on-failure',
         screenshot: 'only-on-failure',
         video: 'retain-on-failure',
     },
