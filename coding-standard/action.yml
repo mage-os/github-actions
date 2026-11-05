@@ -51,6 +51,25 @@ runs:
           echo "installed=false" >> $GITHUB_OUTPUT
         fi
 
+    - name: Resolve where the Coding Standard lives
+      id: coding-standard-directory
+      shell: bash
+      env:
+        INSTALLED: ${{ steps.check-installed.outputs.installed }}
+        PROJECT_PATH: ${{ inputs.path }}
+      run: |
+        if [ "${INSTALLED}" == "true" ]; then
+          echo "path=$(cd "${PROJECT_PATH}" && pwd)" >> $GITHUB_OUTPUT
+        else
+          # Beside the code under test, not inside it. phpcs reads files
+          # statically and never autoloads the project, so it has no reason to
+          # share the project's dependency tree -- and sharing it hands the
+          # project's locked versions a veto over whether the standard can be
+          # installed at all. A project locked to a magento/framework that caps
+          # PHP below the runner's version cannot resolve one.
+          echo "path=${RUNNER_TEMP}/magento-coding-standard" >> $GITHUB_OUTPUT
+        fi
+
     - name: Get Composer Version
       uses: mage-os/github-actions/get-composer-version@main
       id: get-composer-version
@@ -66,54 +85,82 @@ runs:
 
     - name: Enable dealerdirect/phpcodesniffer-composer-installer plugin
       shell: bash
-      working-directory: ${{ inputs.path }}
       run: composer config allow-plugins.dealerdirect/phpcodesniffer-composer-installer true --global
       if: steps.check-installed.outputs.installed != 'true' && steps.is-allow-plugins-available.outputs.result < 1
 
     - name: Install Coding Standard
       shell: bash
-      working-directory: ${{ inputs.path }}
-      run: composer require "magento/magento-coding-standard:${{ inputs.version || '*' }}" "magento/php-compatibility-fork"
-      if: steps.check-installed.outputs.installed != 'true'
       env:
+        CODING_STANDARD_PATH: ${{ steps.coding-standard-directory.outputs.path }}
+        VERSION: ${{ inputs.version }}
         COMPOSER_AUTH: ${{ inputs.composer_auth }}
+      run: |
+        mkdir -p "${CODING_STANDARD_PATH}"
+        if [ ! -f "${CODING_STANDARD_PATH}/composer.json" ]; then
+          echo '{}' > "${CODING_STANDARD_PATH}/composer.json"
+        fi
+        composer require --working-dir="${CODING_STANDARD_PATH}" --no-interaction \
+          "magento/magento-coding-standard:${VERSION:-*}" "magento/php-compatibility-fork"
+      if: steps.check-installed.outputs.installed != 'true'
 
     - name: Register Coding Standard
       shell: bash
-      working-directory: ${{ inputs.path }}
+      working-directory: ${{ steps.coding-standard-directory.outputs.path }}
+      env:
+        CODING_STANDARD_PATH: ${{ steps.coding-standard-directory.outputs.path }}
       run: |
+        # dealerdirect/phpcodesniffer-composer-installer registers every
+        # installed standard, PHPCSUtils among them, which the Magento2 sniffs
+        # need. Overwriting that with a hand-written pair of paths loses it, so
+        # only write the paths when nothing registered them.
+        if vendor/bin/phpcs --config-show 2>/dev/null | grep -q '^installed_paths'; then
+          vendor/bin/phpcs --config-show | grep '^installed_paths'
+          exit 0
+        fi
+
         if [ -d vendor/magento/magento-coding-standard ]; then
           CODING_STANDARD_VENDOR=magento
         elif [ -d vendor/mage-os/magento-coding-standard ]; then
           CODING_STANDARD_VENDOR=mage-os
         else
           echo "No magento-coding-standard directory found under vendor/magento or vendor/mage-os."
-          echo "Trusting dealerdirect/phpcodesniffer-composer-installer to have registered installed_paths."
           exit 0
         fi
+
+        # Absolute: phpcs runs with the directory under test as its working
+        # directory, so a relative path would resolve against the wrong tree.
         vendor/bin/phpcs --config-set installed_paths \
-          "vendor/${CODING_STANDARD_VENDOR}/magento-coding-standard,vendor/${CODING_STANDARD_VENDOR}/php-compatibility-fork"
+          "${CODING_STANDARD_PATH}/vendor/${CODING_STANDARD_VENDOR}/magento-coding-standard,${CODING_STANDARD_PATH}/vendor/${CODING_STANDARD_VENDOR}/php-compatibility-fork"
       if: steps.check-installed.outputs.installed != 'true'
 
     - name: Set ignore warnings flag
       shell: bash
-      working-directory: ${{ inputs.path }}
-      run: vendor/bin/phpcs --config-set ignore_warnings_on_exit 1
+      env:
+        PHPCS: ${{ steps.coding-standard-directory.outputs.path }}/vendor/bin/phpcs
+      run: |
+        "${PHPCS}" --config-set ignore_warnings_on_exit 1
       if: inputs.ignore_warnings == 'true'
 
     - name: Coding Standard Check
       shell: bash
       working-directory: ${{ inputs.path }}
+      env:
+        PHPCS: ${{ steps.coding-standard-directory.outputs.path }}/vendor/bin/phpcs
+        SEVERITY: ${{ inputs.severity }}
+        WARNING_SEVERITY: ${{ inputs.warning_severity }}
+        ERROR_SEVERITY: ${{ inputs.error_severity }}
       run: |
         FLAGS=()
-        [ -n "${{ inputs.severity }}" ] && FLAGS+=(--severity=${{ inputs.severity }}) || true
-        [ -n "${{ inputs.warning_severity }}" ] && FLAGS+=(--warning-severity=${{ inputs.warning_severity }}) || true
-        [ -n "${{ inputs.error_severity }}" ] && FLAGS+=(--error-severity=${{ inputs.error_severity }}) || true
+        [ -n "${SEVERITY}" ] && FLAGS+=(--severity="${SEVERITY}") || true
+        [ -n "${WARNING_SEVERITY}" ] && FLAGS+=(--warning-severity="${WARNING_SEVERITY}") || true
+        [ -n "${ERROR_SEVERITY}" ] && FLAGS+=(--error-severity="${ERROR_SEVERITY}") || true
 
         if [ -f .phpcs.xml ] || [ -f phpcs.xml ] || [ -f .phpcs.xml.dist ] || [ -f phpcs.xml.dist ]; then
-          vendor/bin/phpcs "${FLAGS[@]}" .
+          "${PHPCS}" "${FLAGS[@]}" .
         else
-          vendor/bin/phpcs --standard=Magento2 --ignore=*vendor/* "${FLAGS[@]}" .
+          # Quoted: unquoted, bash expands the pattern against the working
+          # directory whenever a vendor directory is present.
+          "${PHPCS}" --standard=Magento2 --ignore='*vendor/*' "${FLAGS[@]}" .
         fi
 
 branding:
