@@ -29,6 +29,9 @@ const luma = {
     productItem: '.product-item-info',
     productItemLink: 'a.product-item-link',
     addToCart: '#product-addtocart-button',
+    swatchGroup: '.swatch-attribute',
+    swatchOption: '.swatch-option:not(.disabled)',
+    optionSelect: 'select.super-attribute-select',
     cartSuccess: '.message-success',
     minicartCounter: '.minicart-wrapper .counter-number',
     cartItemName: '.cart.item .product-item-name',
@@ -42,6 +45,35 @@ const luma = {
     successPageTitle: '.page-title',
     successBlock: '.checkout-success',
 };
+
+// A configurable product will not go into the cart until every attribute has a
+// value, and which product the catalog lists first is not ours to decide. So
+// pick the first available value for whatever the page asks for, and let the
+// spec work on a simple product, a configurable, or a merchant's own catalog.
+async function selectRequiredOptions(page: Page) {
+    const swatchGroups = page.locator(luma.swatchGroup);
+    for (let i = 0; i < (await swatchGroups.count()); i++) {
+        const option = swatchGroups.nth(i).locator(luma.swatchOption).first();
+        if (await option.count()) {
+            await option.click();
+        }
+    }
+
+    // Configurables render dropdowns instead of swatches when the attribute
+    // has no swatch values, which is what the fixture profile produces.
+    const selects = page.locator(luma.optionSelect);
+    for (let i = 0; i < (await selects.count()); i++) {
+        const select = selects.nth(i);
+        const values = await select
+            .locator('option')
+            .evaluateAll((options) =>
+                options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
+            );
+        if (values.length) {
+            await select.selectOption(values[0]);
+        }
+    }
+}
 
 async function fillShippingAddress(page: Page) {
     const form = page.locator(luma.shippingForm);
@@ -94,6 +126,7 @@ test.describe('Guest checkout', () => {
         });
 
         await test.step('adding to the cart updates the minicart', async () => {
+            await selectRequiredOptions(page);
             await page.locator(luma.addToCart).click();
 
             // customer-data arrives over a separate /customer/section/load

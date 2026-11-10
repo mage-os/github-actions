@@ -96,13 +96,9 @@ jobs:
     - name: Confirm the store answers on the resolved hostname
       run: curl --silent --show-error --fail --insecure --head "${{ steps.warden.outputs.base_url }}" | head -1
 
-    # A bare setup:install has no salable product, so the checkout spec has
-    # nothing to buy. It reindexes itself, so no indexer:reindex follows.
-    #
-    # The profile is streamed into the container rather than copied into the
-    # project: the command runs inside the container, which sees only that
-    # directory, and the directories the container has written to are owned by
-    # its own user, so the runner cannot write there.
+    # A bare setup:install has nothing to buy. The command reindexes itself.
+    # Streamed in rather than copied: the project directories are owned by the
+    # container's user.
     - name: Seed the catalog
       working-directory: ./_ghamagento
       shell: bash
