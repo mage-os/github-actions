@@ -16,6 +16,12 @@
   checkout needs neither), price rules, coupons, extra attribute sets and tax
   rates. Nothing asserts on them.
 
+  One consequence of keeping this file outside setup/performance-toolkit:
+  FixtureConfig derives the profile's di.xml from dirname() of this file, so
+  the toolkit's own di.xml is not loaded. All it does is mock the mail
+  transport, and nothing here generates customers or orders, so nothing tries
+  to send mail. The smtp/disable config below covers the rest.
+
   Also deliberately absent: small.xml sets admin/security/use_form_key to 0 and
   admin_account_sharing to 1. That is reasonable for load testing and wrong
   here. A gate that runs against a store with admin CSRF protection disabled is
