@@ -1,0 +1,156 @@
+# Browser-based E2E Tests for Mage-OS
+
+A Github Workflow that stands a Mage-OS store up, **serves it**, and points a
+browser-based test runner at it.
+
+This is not the PHPUnit-based suite that upstream calls "functional tests". It
+installs a store, serves it through Traefik and Varnish on a resolvable
+hostname, optionally seeds a catalog, and runs a browser against the result.
+
+## Inputs
+
+See the [e2e.yaml](./e2e.yaml)
+
+### What to install
+
+| Input                | Description                                                                 | Required | Default                       |
+| -------------------- | --------------------------------------------------------------------------- | -------- | ----------------------------- |
+| magento_version      | The package to install, e.g. `mage-os/project-community-edition:4.0.0`      | true     | NULL                          |
+| magento_repository   | The composer repository to install it from                                  | false    | https://repo.mage-os.org/     |
+| php_version          | The PHP version that installs and serves the store                          | false    | 8.4                           |
+| composer_version     | The Composer version used inside the container                              | false    | 2.10.2                        |
+
+A release gate points `magento_repository` at the preview repository and
+`magento_version` at the release being built, which is how it tests the
+artifact about to be tagged rather than whatever is already published.
+
+### What to serve it with
+
+| Input                  | Description                                                               | Required | Default         |
+| ---------------------- | ------------------------------------------------------------------------- | -------- | --------------- |
+| database               | Database service and version                                              | false    | mariadb:11.8    |
+| search                 | Search service and version                                                | false    | opensearch:3.4  |
+| rabbitmq               | Message queue service and version                                         | false    | rabbitmq:4.2    |
+| redis                  | Cache service and version                                                 | false    | redis:7.4       |
+| varnish                | HTTP cache service and version                                            | false    | varnish:8.0     |
+| static_content_themes  | Space separated themes to deploy static content for. Empty deploys every theme, which is considerably slower. | false | Magento/luma |
+
+### Where the suite comes from
+
+| Input             | Description                                                      | Required | Default                           |
+| ----------------- | ---------------------------------------------------------------- | -------- | --------------------------------- |
+| suite_repository  | The repository holding the test suite                            | false    | mage-os/github-actions            |
+| suite_ref         | The ref to check it out at                                       | false    | main                              |
+| test_directory    | The suite's directory, relative to the root of `suite_repository` | false    | _test/demo-package/Test/e2e       |
+
+The defaults point at the suite this repository carries for its own canary. A
+caller with a suite of its own overrides all three.
+
+### How to run it
+
+| Input                    | Description                                                        | Required | Default              |
+| ------------------------ | ------------------------------------------------------------------ | -------- | -------------------- |
+| test_command             | The command to run, from `test_directory`                          | false    | `npx playwright test` |
+| node_version             | Node version for the runner                                        | false    | 22                   |
+| fixture_profile          | A performance-toolkit profile to seed, relative to the suite root. Empty skips seeding. | false | _test/demo-package/Test/e2e/fixtures/mageos-e2e.xml |
+| timeout_minutes          | Job timeout                                                        | false    | 60                   |
+| artifact_name            | Name of the uploaded report artifact                               | false    | playwright-report    |
+| artifact_retention_days  | How long the report is kept                                        | false    | 30                   |
+
+## Secrets
+
+| Input         | Description                                                                 | Required | Default |
+| ------------- | --------------------------------------------------------------------------- | -------- | ------- |
+| composer_auth | JSON string of composer credentials                                         | false    | NULL    |
+
+## Outputs
+
+| Output   | Description                           |
+| -------- | ------------------------------------- |
+| base_url | The URL the store was served on       |
+
+## `test_command`
+
+The workflow does not know what test runner you use. `test_command` is run from
+`test_directory` with `PLAYWRIGHT_BASE_URL` already set to the served store, so
+a caller can pass grep filters, shards, a different reporter, or something that
+is not Playwright at all, without this workflow growing an input per flag.
+
+The command arrives through the environment rather than interpolated into the
+script, so its quoting is bash's problem and not the expression engine's.
+
+**Keep evidence policy out of it.** `trace`, `video` and `screenshot` belong in
+the suite's own config, where they are reviewable. A CLI flag overrides the
+config, and `--trace on` records a trace for every passing test, which uploads
+a large artifact for no benefit. The default command carries no flags for that
+reason.
+
+### A setup phase
+
+Playwright's project `dependencies` are the mechanism for shared state that is
+expensive to build -- an authenticated admin or customer session saved as
+`storageState` and reused by every spec that needs it. Express that in the
+suite's config rather than as two `--grep` / `--grep-invert` invocations in
+`test_command`: two invocations write to the same report directory, so the
+second overwrites the first and a failing setup phase loses its own evidence.
+One command, one report, one exit code.
+
+Data is a different matter. Catalog and configuration are seeded through
+`fixture_profile` by the CLI in seconds; doing the same work through a browser
+would be slower and flakier for no gain.
+
+## Fixtures
+
+`fixture_profile` is a [performance
+toolkit](https://developer.adobe.com/commerce/php/development/tools/performance-toolkit/)
+profile, applied with `setup:performance:generate-fixtures`. The command
+reindexes as part of its own run, so no `indexer:reindex` follows it.
+
+A bare `setup:install` has no salable product, so any suite that reaches a
+product page or a checkout needs this. Leave it empty for a suite that asserts
+only on what a bare install provides.
+
+## Usage
+
+```yaml
+jobs:
+  e2e:
+    uses: mage-os/github-actions/.github/workflows/e2e.yaml@main
+    with:
+      magento_version: "mage-os/project-community-edition:4.0.0"
+```
+
+Gating a release on the artifact that is about to be tagged:
+
+```yaml
+jobs:
+  storefront-check:
+    needs: [ deploy ]
+    uses: mage-os/github-actions/.github/workflows/e2e.yaml@main
+    with:
+      magento_repository: ${{ inputs.repo }}
+      magento_version: "mage-os/project-community-edition:${{ inputs.mageos_release }}"
+      artifact_name: "storefront-check-${{ inputs.mageos_release }}"
+```
+
+Running a suite of your own:
+
+```yaml
+jobs:
+  e2e:
+    uses: mage-os/github-actions/.github/workflows/e2e.yaml@main
+    with:
+      magento_version: "mage-os/project-community-edition:4.0.0"
+      suite_repository: my-org/my-e2e-tests
+      suite_ref: v1.2.0
+      test_directory: "."
+      test_command: "npx playwright test --grep @smoke"
+      fixture_profile: "fixtures/minimal.xml"
+```
+
+## Where things end up on the runner
+
+`warden/setup-environment` checks the Warden CLI out into `warden/` at the
+workspace root, and `base_directory` has to sit exactly one level below it.
+That is why the suite is checked out into `suite/` and the store into
+`_ghamagento/`, and why neither is at the workspace root.
