@@ -189,7 +189,9 @@ jobs:
     # Separate from the test run so that "the store was never reachable" and
     # "the store rendered the wrong thing" are different red steps.
     - name: Confirm the store answers on the resolved hostname
-      run: curl --silent --show-error --fail --insecure --head "${{ steps.warden.outputs.base_url }}" | head -1
+      env:
+        BASE_URL: ${{ steps.warden.outputs.base_url }}
+      run: curl --silent --show-error --fail --insecure --head "$BASE_URL" | head -1
 
     # A bare setup:install has nothing to buy. The command reindexes itself.
     # Streamed in rather than copied: the project directories are owned by the
