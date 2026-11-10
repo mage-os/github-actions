@@ -69,6 +69,18 @@ Received string:  "m137-admin-theme adminhtml-auth-login page-layout-admin-login
 
 For the static content assertion, clear `pub/static` and reload.
 
+## Version-dependent assertions
+
+When run from `e2e.yaml`, the suite receives `MAGEOS_VERSION` and
+`MAGENTO_VERSION`, probed from the running store rather than taken from the
+workflow input. Nothing uses them yet.
+
+When something does, use `test.skip(condition, reason)` next to the assertion
+rather than excluding the spec from the command line: a skip appears in the
+report with its reason, while a `--grep` exclusion is invisible and goes stale
+silently. For markup that moves between versions, branch the selector map at
+the top of the spec rather than the spec itself.
+
 ## Fixtures
 
 `fixtures/mageos-e2e.xml` is a performance-toolkit profile, run with the

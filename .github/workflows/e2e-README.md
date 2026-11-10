@@ -99,6 +99,38 @@ Data is a different matter. Catalog and configuration are seeded through
 `fixture_profile` by the CLI in seconds; doing the same work through a browser
 would be slower and flakier for no gain.
 
+## What the suite is told about the store
+
+| Variable | Value |
+| --- | --- |
+| `PLAYWRIGHT_BASE_URL` | the served store's URL |
+| `MAGEOS_VERSION` | e.g. `4.0.0` |
+| `MAGENTO_VERSION` | the upstream version it is based on, e.g. `2.4.9` |
+
+Both versions are **probed from the running store** (`bin/magento --version`),
+not echoed back from `magento_version`. A version input can be a constraint,
+the repository can resolve it differently than expected, and a gate should
+report what installed rather than what was asked for.
+
+Two versions rather than one because they drift apart for different reasons:
+Luma markup tracks upstream Magento, while feature availability tracks Mage-OS.
+A spec that has to care about either should say so next to the assertion:
+
+```ts
+test('...', async ({ page }) => {
+    test.skip(!atLeast(process.env.MAGEOS_VERSION, '5.0.0'), 'introduced in 5.0');
+});
+```
+
+Prefer `test.skip` with a reason over excluding the spec with `--grep`. A skip
+appears in the report, with its reason, so "why did this not run" is answerable
+from the artifact. A grep exclusion is invisible, and nothing fails when a
+version condition goes stale.
+
+The step also writes the full stack -- PHP, database, search, Redis and Varnish
+patch levels, probed from the containers -- to the job summary, so a red gate
+says what it ran against without anyone reading the log.
+
 ## Fixtures
 
 `fixture_profile` is a [performance
