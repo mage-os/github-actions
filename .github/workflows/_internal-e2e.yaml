@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   storefront-smoke-test:
-    name: "storefront smoke test"
+    name: "storefront tests"
     if: "!startsWith(github.head_ref, 'release-please')"
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -96,6 +96,20 @@ jobs:
     - name: Confirm the store answers on the resolved hostname
       run: curl --silent --show-error --fail --insecure --head "${{ steps.warden.outputs.base_url }}" | head -1
 
+    # A bare setup:install has no salable product, so the checkout spec has
+    # nothing to buy. The profile is copied into the project because the
+    # command runs inside the container, which only sees that directory.
+    # It reindexes itself, so no indexer:reindex follows.
+    - name: Seed the catalog
+      working-directory: ./_ghamagento
+      shell: bash
+      env:
+        PROFILE: ${{ github.workspace }}/${{ env.E2E_DIRECTORY }}/fixtures/mageos-e2e.xml
+      run: |
+        cp "${PROFILE}" var/mageos-e2e.xml
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        ${WARDEN} env exec -T php-fpm bin/magento setup:performance:generate-fixtures var/mageos-e2e.xml
+
     - uses: actions/setup-node@v4
       with:
         node-version: 22
@@ -108,7 +122,7 @@ jobs:
         npm ci
         npx playwright install --with-deps chromium
 
-    - name: Run the storefront smoke test
+    - name: Run the storefront tests
       working-directory: ${{ env.E2E_DIRECTORY }}
       env:
         PLAYWRIGHT_BASE_URL: ${{ steps.warden.outputs.base_url }}
