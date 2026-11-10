@@ -1,0 +1,96 @@
+<?xml version="1.0"?>
+<!--
+  A fixture profile for the Mage-OS storefront check.
+
+  The performance toolkit ships five profiles, and the smallest, small.xml,
+  generates 800 simple products, 16 configurables, 100 images, 30 categories,
+  200 customers and 80 orders. Those profiles exist to benchmark a store under
+  catalog weight, not to seed a functional test, and core ships no profile for
+  the latter. This is that profile: the least data a storefront check needs to
+  reach a product page and place a guest order.
+
+  Measured on Mage-OS 4.0.0 under Warden: 12s wall clock, including the reindex
+  the command runs itself. Re-running it does not duplicate anything.
+
+  Deliberately absent: images (the slow part), customers and orders (guest
+  checkout needs neither), price rules, coupons, extra attribute sets and tax
+  rates. Nothing asserts on them.
+
+  Also deliberately absent: small.xml sets admin/security/use_form_key to 0 and
+  admin_account_sharing to 1. That is reasonable for load testing and wrong
+  here. A gate that runs against a store with admin CSRF protection disabled is
+  not testing the store we ship.
+-->
+<config xmlns:xi="http://www.w3.org/2001/XInclude">
+    <profile>
+        <websites>1</websites>
+        <store_groups>1</store_groups>
+        <store_views>1</store_views>
+        <sources>1</sources>
+        <stocks>1</stocks>
+        <assign_entities_to_all_websites>0</assign_entities_to_all_websites>
+
+        <!-- product_dynamic_1 .. product_dynamic_20, and
+             "Configurable Product 1" with three variations. The SKUs are
+             deterministic, which is the thing sample data cannot offer: no
+             assertion breaks because a product was renamed upstream. -->
+        <simple_products>20</simple_products>
+        <configurable_products>
+            <config>
+                <attributes>
+                    <attribute>
+                        <options>3</options>
+                    </attribute>
+                </attributes>
+                <sku>Configurable Product %s</sku>
+                <products>1</products>
+            </config>
+        </configurable_products>
+
+        <categories>2</categories>
+        <categories_nesting_level>1</categories_nesting_level>
+
+        <customers>0</customers>
+        <orders>0</orders>
+        <catalog_price_rules>0</catalog_price_rules>
+        <cart_price_rules>0</cart_price_rules>
+        <coupon_codes>0</coupon_codes>
+        <product_attribute_sets>0</product_attribute_sets>
+
+        <configs>
+            <!-- No SMTP on a CI runner. A failed order confirmation email
+                 must not obscure a real checkout failure. -->
+            <config>
+                <path>system/smtp/disable</path>
+                <scope>default</scope>
+                <scopeId>0</scopeId>
+                <value>1</value>
+            </config>
+            <!-- Already the stock default; stated so this profile carries
+                 what guest checkout needs rather than relying on it.
+
+                 It is also a workaround. ConfigsApplyFixture iterates
+                 $configs['config'] as a list, but a single <config> element
+                 collapses to a flat map, so the fixture iterates that
+                 element's own values and fatals with "Cannot access offset of
+                 type string on string". small.xml carries four entries, so
+                 upstream never sees it. Keep at least two here. -->
+            <config>
+                <path>carriers/flatrate/active</path>
+                <scope>default</scope>
+                <scopeId>0</scopeId>
+                <value>1</value>
+            </config>
+        </configs>
+
+        <!-- Realtime indexing: the check must not wait on cron. -->
+        <indexers>
+            <indexer><id>catalog_category_product</id><set_scheduled>false</set_scheduled></indexer>
+            <indexer><id>catalog_product_category</id><set_scheduled>false</set_scheduled></indexer>
+            <indexer><id>catalog_product_price</id><set_scheduled>false</set_scheduled></indexer>
+            <indexer><id>catalog_product_attribute</id><set_scheduled>false</set_scheduled></indexer>
+            <indexer><id>cataloginventory_stock</id><set_scheduled>false</set_scheduled></indexer>
+            <indexer><id>catalogsearch_fulltext</id><set_scheduled>false</set_scheduled></indexer>
+        </indexers>
+    </profile>
+</config>
