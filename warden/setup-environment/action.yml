@@ -83,6 +83,56 @@ inputs:
     default: "./"
     description: "Base directory for the Mage-OS codebase."
 
+  env_name:
+    required: false
+    default: "mageos"
+    description: "Warden environment name (WARDEN_ENV_NAME)."
+
+  traefik_domain:
+    required: false
+    default: "mageos.test"
+    description: "Traefik domain the environment is served on (TRAEFIK_DOMAIN)."
+
+  traefik_subdomain:
+    required: false
+    default: "app"
+    description: "Traefik subdomain the environment is served on (TRAEFIK_SUBDOMAIN)."
+
+  backend_frontname:
+    required: false
+    default: "admin"
+    description: "Admin frontName passed to setup:install. Pinning this keeps the admin URL predictable, which browser-based tests need."
+
+  base_url:
+    required: false
+    default: ""
+    description: "Base URL passed to setup:install as --base-url. Empty leaves Magento's default, which is what non-browser test suites want."
+
+  configure_host_resolution:
+    required: false
+    default: "0"
+    description: "Whether to resolve the Traefik hostname on the runner itself, so tools outside the containers (a browser, curl) can reach the store."
+
+  run_static_content_deploy:
+    required: false
+    default: "0"
+    description: "Whether to run setup:static-content:deploy. Required before a browser can render the storefront; pointless for PHPUnit suites."
+
+  static_content_languages:
+    required: false
+    default: "en_US"
+    description: "Space separated locales to deploy static content for."
+
+  static_content_themes:
+    required: false
+    default: ""
+    description: "Space separated themes to deploy static content for, e.g. 'Magento/luma'. Empty deploys every theme, which is considerably slower."
+
+outputs:
+  base_url:
+    description: "The URL the environment is served on, for callers that need to point a browser at it."
+    value: ${{ steps.resolve-base-url.outputs.base_url }}
+
 runs:
   using: composite
   steps:
@@ -104,6 +154,9 @@ runs:
         VARNISH: ${{ inputs.varnish }}
         RABBITMQ: ${{ inputs.rabbitmq }}
         REDIS: ${{ inputs.redis }}
+        ENV_NAME: ${{ inputs.env_name }}
+        TRAEFIK_DOMAIN_INPUT: ${{ inputs.traefik_domain }}
+        TRAEFIK_SUBDOMAIN_INPUT: ${{ inputs.traefik_subdomain }}
       run: |
         # Splitting database input to distribution and version
         DB_DISTRIBUTION=${DATABASE%%:*}
@@ -149,12 +202,12 @@ runs:
 
         # Creating .env file by substituting variables directly in the template
         cat << EOF > .env
-        WARDEN_ENV_NAME=mageos
+        WARDEN_ENV_NAME=${ENV_NAME}
         WARDEN_ENV_TYPE=magento2
         WARDEN_WEB_ROOT=/
 
-        TRAEFIK_DOMAIN=mageos.test
-        TRAEFIK_SUBDOMAIN=app
+        TRAEFIK_DOMAIN=${TRAEFIK_DOMAIN_INPUT}
+        TRAEFIK_SUBDOMAIN=${TRAEFIK_SUBDOMAIN_INPUT}
 
         WARDEN_DB=1
         WARDEN_ELASTICSEARCH=${WARDEN_ELASTICSEARCH}
@@ -196,6 +249,15 @@ runs:
         echo ".env created"
         cat .env
 
+    - name: Resolve served base URL
+      id: resolve-base-url
+      shell: bash
+      env:
+        TRAEFIK_DOMAIN_INPUT: ${{ inputs.traefik_domain }}
+        TRAEFIK_SUBDOMAIN_INPUT: ${{ inputs.traefik_subdomain }}
+      run: |
+        echo "base_url=https://${TRAEFIK_SUBDOMAIN_INPUT}.${TRAEFIK_DOMAIN_INPUT}/" >> "$GITHUB_OUTPUT"
+
     - name: Warden svc up && Warden env up
       working-directory: ${{ inputs.base_directory }}
       shell: bash
@@ -210,6 +272,18 @@ runs:
       run: |
         export WARDEN="$(dirname $(pwd))/warden/bin/warden"
         ${WARDEN} env exec -T php-fpm sudo chmod -R 777 .
+
+    - name: Resolve the Traefik hostname on the runner
+      if: ${{ inputs.configure_host_resolution == '1' }}
+      shell: bash
+      env:
+        HOSTNAME_TO_RESOLVE: ${{ inputs.traefik_subdomain }}.${{ inputs.traefik_domain }}
+      run: |
+        # Warden relies on dnsmasq locally; a runner has no such resolver, so
+        # anything running outside the containers -- a browser, curl -- cannot
+        # reach the store without this.
+        echo "127.0.0.1 ${HOSTNAME_TO_RESOLVE}" | sudo tee -a /etc/hosts
+        getent hosts "${HOSTNAME_TO_RESOLVE}"
 
     - name: Wait for environment to be ready
       working-directory: ${{ inputs.base_directory }}
@@ -263,6 +337,8 @@ runs:
         RABBITMQ: ${{ inputs.rabbitmq }}
         VARNISH: ${{ inputs.varnish }}
         RUN_SETUP_INSTALL: ${{ inputs.run_setup_install }}
+        BACKEND_FRONTNAME: ${{ inputs.backend_frontname }}
+        BASE_URL: ${{ inputs.base_url }}
       run: |
         if [ $RUN_SETUP_INSTALL == "1" ]; then
           SEARCH_ENGINE_VERSION=${SEARCH##*:}
@@ -291,7 +367,13 @@ runs:
           esac
 
           declare -a PARAMETERS
-          PARAMETERS+=(--backend-frontname=admin --db-host=db --db-name=magento --db-user=magento --db-password=magento)
+          PARAMETERS+=(--backend-frontname=${BACKEND_FRONTNAME} --db-host=db --db-name=magento --db-user=magento --db-password=magento)
+
+          # Magento otherwise installs on its default base URL, which a browser
+          # pointed at the Traefik hostname would be redirected away from.
+          if [[ -n $BASE_URL ]]; then
+            PARAMETERS+=(--base-url=${BASE_URL} --use-rewrites=1)
+          fi
 
           if [[ -n $REDIS ]]; then
             PARAMETERS+=(--session-save=redis --session-save-redis-host=redis --session-save-redis-port=6379 --session-save-redis-db=2 --cache-backend=redis --cache-backend-redis-server=redis --cache-backend-redis-db=0 --cache-backend-redis-port=6379 --page-cache=redis --page-cache-redis-server=redis --page-cache-redis-db=1 --page-cache-redis-port=6379)
@@ -372,6 +454,27 @@ runs:
           ${WARDEN} env exec -T php-fpm bin/magento deploy:mode:set production
         else
           echo "Skipping deploy:mode:set production"
+        fi
+
+    - name: Deploy static content
+      working-directory: ${{ inputs.base_directory }}
+      shell: bash
+      env:
+        LANGUAGES: ${{ inputs.static_content_languages }}
+        THEMES: ${{ inputs.static_content_themes }}
+      run: |
+        if [ ${{ inputs.run_static_content_deploy }} == "1" ]; then
+          export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+          declare -a DEPLOY_ARGS
+          DEPLOY_ARGS+=(${LANGUAGES})
+          DEPLOY_ARGS+=(-f)
+          # Deploying every theme costs minutes a browser test does not need.
+          for THEME in ${THEMES}; do
+            DEPLOY_ARGS+=(--theme "${THEME}")
+          done
+          ${WARDEN} env exec -T php-fpm bin/magento setup:static-content:deploy "${DEPLOY_ARGS[@]}"
+        else
+          echo "Skipping setup:static-content:deploy"
         fi
 
     - name: Run Magento Re-indexation
