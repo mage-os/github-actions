@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   storefront-smoke-test:
-    name: "storefront tests"
+    name: "storefront and admin tests"
     if: "!startsWith(github.head_ref, 'release-please')"
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -45,6 +45,14 @@ jobs:
       # its own versions.
       PHP_VERSION: "8.4"
       COMPOSER_VERSION: "2.10.2"
+      # Declared once and handed to both the install and the suite. Two places
+      # holding separate opinions about the admin URL is a silent 404 that
+      # looks like a broken admin.
+      ADMIN_FRONTNAME: "admin"
+      # What warden/setup-environment's admin:user:create step makes. Not a
+      # secret: it is a throwaway store that exists for the length of the job.
+      ADMIN_USER: "admin"
+      ADMIN_PASSWORD: "abcABC123"
     steps:
     # Not at the workspace root: warden/setup-environment checks the Warden
     # CLI out into warden/ there, which is where this repository keeps that
@@ -88,8 +96,12 @@ jobs:
         # The three inputs a browser needs, and nothing a PHPUnit suite pays for.
         base_url: "https://${{ env.TRAEFIK_SUBDOMAIN }}.${{ env.TRAEFIK_DOMAIN }}/"
         configure_host_resolution: 1
+        backend_frontname: ${{ env.ADMIN_FRONTNAME }}
         run_static_content_deploy: 1
-        static_content_themes: "Magento/luma"
+        # Magento/backend as well as the storefront theme: the admin specs
+        # would otherwise have to wait for every asset to be generated on
+        # demand, which reads as a timeout rather than as a missing deploy.
+        static_content_themes: "Magento/luma Magento/backend"
 
     # Separate from the test run so that "the store was never reachable" and
     # "the store rendered the wrong thing" are different red steps.
@@ -145,6 +157,57 @@ jobs:
           echo "| Varnish | ${VARNISH:-unknown} |"
         } >> $GITHUB_STEP_SUMMARY
 
+    # Magento has no switch for two-factor authentication. There is no enable
+    # flag, and leaving twofactorauth/general/force_providers empty does not
+    # help: ControllerActionPredispatch still routes a fresh admin user to
+    # tfa/tfa/index, which redirects to tfa/tfa/requestconfig. Disabling the
+    # module is the only way in. MageOS_PasskeyAuth requires it and registers
+    # an admin 2FA provider, so both have to go in one command or dependency
+    # validation refuses it.
+    #
+    # The cost is stated rather than hidden: this gate does not cover admin
+    # 2FA. Covering it means driving a TOTP provider from its shared secret,
+    # which is worth doing, as its own spec.
+    - name: Open the admin to the test suite
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+
+        MODULES=()
+        for MODULE in MageOS_PasskeyAuth Magento_TwoFactorAuth; do
+          # module:status exits 0 even for a module that is not installed, so
+          # its output is the only signal. MageOS_PasskeyAuth is Mage-OS only,
+          # and this workflow should still work against a Magento install.
+          if ${WARDEN} env exec -T php-fpm bin/magento module:status "${MODULE}" 2>&1 | grep -q 'does not exist'; then
+            echo "${MODULE} is not installed"
+          else
+            MODULES+=("${MODULE}")
+          fi
+        done
+
+        # An array, not a string: module:disable takes the names as separate
+        # arguments and reads a single space-joined string as one unknown
+        # module name. Re-running it changes nothing and still exits 0.
+        if [ ${#MODULES[@]} -gt 0 ]; then
+          ${WARDEN} env exec -T php-fpm bin/magento module:disable "${MODULES[@]}"
+        fi
+
+        # Already the default. Pinned so the suite does not rely on one:
+        # it gates Magento_AdminAnalytics' usage-data modal, which would
+        # otherwise cover the dashboard on first sign-in.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set admin/usage/enabled 0
+
+        # The admin login CAPTCHA is on by default (admin/captcha/enable 1) in
+        # after_fail mode, and asks for one after three failed attempts per
+        # login name -- counted in the captcha_log table, which survives
+        # across runs against a long-lived store. A suite that asserts a bad
+        # credential is refused produces exactly those failures, so leaving
+        # this on lets the negative control poison the positive one, and the
+        # symptom is an "Incorrect CAPTCHA" that looks nothing like the cause.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set admin/captcha/enable 0
+        ${WARDEN} env exec -T php-fpm bin/magento cache:flush
+
     # A bare setup:install has nothing to buy. The command reindexes itself.
     # Streamed in rather than copied: the project directories are owned by the
     # container's user.
@@ -170,12 +233,15 @@ jobs:
         npm ci
         npx playwright install --with-deps chromium
 
-    - name: Run the storefront tests
+    - name: Run the tests
       working-directory: ${{ env.E2E_DIRECTORY }}
       env:
         PLAYWRIGHT_BASE_URL: ${{ steps.warden.outputs.base_url }}
         MAGEOS_VERSION: ${{ steps.stack.outputs.mageos }}
         MAGENTO_VERSION: ${{ steps.stack.outputs.magento }}
+        MAGENTO_ADMIN_USER: ${{ env.ADMIN_USER }}
+        MAGENTO_ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
+        MAGENTO_ADMIN_FRONTNAME: ${{ env.ADMIN_FRONTNAME }}
       run: npx playwright test
 
     - name: Upload the Playwright report

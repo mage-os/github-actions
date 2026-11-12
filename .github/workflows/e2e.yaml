@@ -58,8 +58,18 @@ on:
       static_content_themes:
         required: false
         type: string
-        default: "Magento/luma"
-        description: "Space separated themes to deploy static content for. Empty deploys every theme, which is considerably slower."
+        default: "Magento/luma Magento/backend"
+        description: "Space separated themes to deploy static content for. Empty deploys every theme, which is considerably slower. Magento/backend is in the default because an admin spec against an undeployed admin theme reads as a timeout rather than as a missing deploy."
+      backend_frontname:
+        required: false
+        type: string
+        default: "admin"
+        description: "setup:install --backend-frontname. Passed to the install and to the suite from this one place, so the two cannot disagree about the admin URL."
+      disable_admin_auth_modules:
+        required: false
+        type: boolean
+        default: true
+        description: "Disable Magento_TwoFactorAuth and MageOS_PasskeyAuth so a suite can sign in to the admin. Magento offers no configuration flag for this; see the step for why. Set false for a storefront-only run, which then leaves 2FA in place."
 
       # Where the suite comes from. The default is the suite this repository
       # carries for its own canary; a caller with a suite of its own overrides
@@ -140,6 +150,12 @@ jobs:
       TRAEFIK_SUBDOMAIN: app
       # The suite is checked out here, and the tests run in SUITE/<dir>.
       SUITE: suite
+      # What warden/setup-environment's admin:user:create step makes. The
+      # action hardcodes these, so they are not inputs: an input a caller
+      # could change without the store changing would only ever be a lie.
+      # Not a secret either -- a throwaway store for the length of the job.
+      ADMIN_USER: "admin"
+      ADMIN_PASSWORD: "abcABC123"
 
     steps:
     # Not at the workspace root: warden/setup-environment checks the Warden CLI
@@ -181,6 +197,7 @@ jobs:
         run_reindex: 1
         traefik_domain: ${{ env.TRAEFIK_DOMAIN }}
         traefik_subdomain: ${{ env.TRAEFIK_SUBDOMAIN }}
+        backend_frontname: ${{ inputs.backend_frontname }}
         base_url: "https://${{ env.TRAEFIK_SUBDOMAIN }}.${{ env.TRAEFIK_DOMAIN }}/"
         configure_host_resolution: 1
         run_static_content_deploy: 1
@@ -243,6 +260,58 @@ jobs:
     # A bare setup:install has nothing to buy. The command reindexes itself.
     # Streamed in rather than copied: the project directories are owned by the
     # container's user.
+    # Magento has no switch for two-factor authentication. There is no enable
+    # flag, and leaving twofactorauth/general/force_providers empty does not
+    # help: ControllerActionPredispatch still routes a fresh admin user to
+    # tfa/tfa/index, which redirects to tfa/tfa/requestconfig. Disabling the
+    # module is the only way in. MageOS_PasskeyAuth requires it and registers
+    # an admin 2FA provider, so both have to go in one command or dependency
+    # validation refuses it.
+    #
+    # The cost is stated rather than hidden: a run with this on does not cover
+    # admin 2FA. Covering it means driving a TOTP provider from its shared
+    # secret, which is worth doing, as its own spec.
+    - name: Open the admin to the test suite
+      if: inputs.disable_admin_auth_modules
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+
+        MODULES=()
+        for MODULE in MageOS_PasskeyAuth Magento_TwoFactorAuth; do
+          # module:status exits 0 even for a module that is not installed, so
+          # its output is the only signal. MageOS_PasskeyAuth is Mage-OS only,
+          # and this workflow should still work against a Magento install.
+          if ${WARDEN} env exec -T php-fpm bin/magento module:status "${MODULE}" 2>&1 | grep -q 'does not exist'; then
+            echo "${MODULE} is not installed"
+          else
+            MODULES+=("${MODULE}")
+          fi
+        done
+
+        # An array, not a string: module:disable takes the names as separate
+        # arguments and reads a single space-joined string as one unknown
+        # module name. Re-running it changes nothing and still exits 0.
+        if [ ${#MODULES[@]} -gt 0 ]; then
+          ${WARDEN} env exec -T php-fpm bin/magento module:disable "${MODULES[@]}"
+        fi
+
+        # Already the default. Pinned so the suite does not rely on one: it
+        # gates Magento_AdminAnalytics' usage-data modal, which would
+        # otherwise cover the dashboard on first sign-in.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set admin/usage/enabled 0
+
+        # The admin login CAPTCHA is on by default (admin/captcha/enable 1) in
+        # after_fail mode, and asks for one after three failed attempts per
+        # login name -- counted in the captcha_log table, which survives
+        # across runs against a long-lived store. A suite that asserts a bad
+        # credential is refused produces exactly those failures, so leaving
+        # this on lets the negative control poison the positive one, and the
+        # symptom is an "Incorrect CAPTCHA" that looks nothing like the cause.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set admin/captcha/enable 0
+        ${WARDEN} env exec -T php-fpm bin/magento cache:flush
+
     - name: Seed the catalog
       if: inputs.fixture_profile != ''
       working-directory: ./_ghamagento
@@ -276,6 +345,9 @@ jobs:
         PLAYWRIGHT_BASE_URL: ${{ steps.warden.outputs.base_url }}
         MAGEOS_VERSION: ${{ steps.stack.outputs.mageos }}
         MAGENTO_VERSION: ${{ steps.stack.outputs.magento }}
+        MAGENTO_ADMIN_USER: ${{ env.ADMIN_USER }}
+        MAGENTO_ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
+        MAGENTO_ADMIN_FRONTNAME: ${{ inputs.backend_frontname }}
       run: bash -c "$TEST_COMMAND"
 
     # A failing gate is read by someone deciding whether to ship, so the

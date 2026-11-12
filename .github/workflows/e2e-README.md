@@ -33,7 +33,9 @@ artifact about to be tagged rather than whatever is already published.
 | rabbitmq               | Message queue service and version                                         | false    | rabbitmq:4.2    |
 | redis                  | Cache service and version                                                 | false    | redis:7.4       |
 | varnish                | HTTP cache service and version                                            | false    | varnish:8.0     |
-| static_content_themes  | Space separated themes to deploy static content for. Empty deploys every theme, which is considerably slower. | false | Magento/luma |
+| static_content_themes  | Space separated themes to deploy static content for. Empty deploys every theme, which is considerably slower. | false | Magento/luma Magento/backend |
+| backend_frontname      | `setup:install --backend-frontname`. Passed to the install and to the suite from this one place, so the two cannot disagree about the admin URL. | false | admin |
+| disable_admin_auth_modules | Disable `Magento_TwoFactorAuth` and `MageOS_PasskeyAuth` so a suite can sign in to the admin. Set `false` for a storefront-only run. | false | true |
 
 ### Where the suite comes from
 
@@ -106,7 +108,54 @@ would be slower and flakier for no gain.
 | `PLAYWRIGHT_BASE_URL` | the served store's URL |
 | `MAGEOS_VERSION` | e.g. `4.0.0` |
 | `MAGENTO_VERSION` | the upstream version it is based on, e.g. `2.4.9` |
+| `MAGENTO_ADMIN_USER` | the admin account the install created |
+| `MAGENTO_ADMIN_PASSWORD` | its password |
+| `MAGENTO_ADMIN_FRONTNAME` | whatever `backend_frontname` was set to |
 
+The admin credentials are not inputs. `warden/setup-environment` hardcodes
+them in its `admin:user:create` step, so an input a caller could change
+without the store changing would only ever be a lie. They are not secrets
+either: the store is created and destroyed inside one job.
+
+`backend_frontname` **is** an input, and it reaches the install and the suite
+from that single place. Two places holding separate opinions about the admin
+URL is a 404 that presents as a broken admin.
+
+## Signing in to the admin
+
+`disable_admin_auth_modules` (default `true`) disables
+`Magento_TwoFactorAuth` and `MageOS_PasskeyAuth` after the install.
+
+This is not a convenience. Magento has no configuration flag that switches 2FA
+off: `twofactorauth/general/force_providers` is empty by default, and
+`ControllerActionPredispatch` still routes a fresh admin user to
+`tfa/tfa/index`, which redirects to `tfa/tfa/requestconfig`. Disabling the
+module is the only way in. `MageOS_PasskeyAuth` requires it and registers an
+admin 2FA provider, so the two go together or `module:disable` refuses the
+command. `MageOS_PasskeyAuth` does not exist outside Mage-OS, so the step
+checks before naming it -- `module:status` exits `0` even for a module that is
+not installed, so its output is the only signal.
+
+The step also pins `admin/usage/enabled` to `0`, its own default, because that
+flag gates `Magento_AdminAnalytics`' usage-data modal, which would otherwise
+cover the dashboard on first sign-in.
+
+And it disables the admin login CAPTCHA. That one is **on** by default:
+`admin/captcha/enable` is `1` in `after_fail` mode, asking for a CAPTCHA after
+three failed attempts per login name, counted in the `captcha_log` table. Any
+suite that asserts a bad credential is refused generates those failures, so
+leaving it on lets a negative control poison the positive one -- and it
+surfaces as `Incorrect CAPTCHA` on a password that is correct, which sends you
+looking in the wrong place entirely.
+
+The cost is explicit: **a run with this on does not cover admin 2FA.** Doing
+that properly means driving a TOTP provider from its shared secret, which is
+worth a spec of its own rather than a flag here.
+
+`Magento/backend` is in the `static_content_themes` default for the same
+reason: an admin spec against an undeployed admin theme waits for every asset
+to be generated on demand, and reads as a timeout rather than as a missing
+deploy.
 Both versions are **probed from the running store** (`bin/magento --version`),
 not echoed back from `magento_version`. A version input can be a constraint,
 the repository can resolve it differently than expected, and a gate should

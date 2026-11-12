@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
+import { adminStateFile } from './admin/support';
 
 dotenv.config();
 
@@ -39,5 +40,26 @@ export default defineConfig({
         screenshot: 'only-on-failure',
         video: 'retain-on-failure',
     },
-    projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+    projects: [
+        // The admin specs share one signed-in session rather than signing in
+        // again per spec. A project dependency, not a globalSetup hook: this
+        // way the sign-in is a reported result of its own, so a broken login
+        // and a broken admin page do not present as the same red.
+        {
+            name: 'admin-session',
+            testMatch: /admin[\\/]session\.setup\.ts$/,
+            use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            name: 'storefront',
+            testIgnore: /admin[\\/]/,
+            use: { ...devices['Desktop Chrome'] },
+        },
+        {
+            name: 'admin',
+            testMatch: /admin[\\/].*\.spec\.ts$/,
+            dependencies: ['admin-session'],
+            use: { ...devices['Desktop Chrome'], storageState: adminStateFile },
+        },
+    ],
 });
