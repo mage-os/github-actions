@@ -44,3 +44,16 @@ jobs:
         warning_severity: 4 # Optional, will use severity value if not specified.
         error_severity: 7 # Optional, will use severity value if not specified.
 ```
+
+## Where the standard is installed
+
+If `path` already has the coding standard in its `vendor` directory, that copy
+is used. Otherwise the standard is installed into a directory of its own under
+`RUNNER_TEMP`, and `phpcs` is run from there against `path`.
+
+It is not installed into the code under test, because `phpcs` reads files
+statically and never autoloads the project. Installing it there makes the
+project's own locked dependencies a veto over whether the standard can be
+installed at all -- a project locked to a `magento/framework` that caps PHP
+below the runner's version cannot resolve one, and the check fails before a
+single sniff runs.
