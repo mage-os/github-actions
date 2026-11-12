@@ -152,6 +152,15 @@ The cost is explicit: **a run with this on does not cover admin 2FA.** Doing
 that properly means driving a TOTP provider from its shared secret, which is
 worth a spec of its own rather than a flag here.
 
+Setting it `false` leaves 2FA in place, which means the admin specs cannot
+sign in. Pair it with a `test_command` that does not select them, or the run
+fails on the session setup rather than on anything it meant to test:
+
+```yaml
+disable_admin_auth_modules: false
+test_command: "npx playwright test --project=storefront"
+```
+
 `Magento/backend` is in the `static_content_themes` default for the same
 reason: an admin spec against an undeployed admin theme waits for every asset
 to be generated on demand, and reads as a timeout rather than as a missing
