@@ -205,10 +205,26 @@ jobs:
 
     # Separate from the test run so that "the store was never reachable" and
     # "the store rendered the wrong thing" are different red steps.
+    #
+    # The status is captured and compared rather than piped into head. This
+    # step used to be `curl --fail ... | head -1`, which reported a 404 and
+    # passed anyway: a GitHub `run:` without `shell: bash` gets `bash -e`
+    # without `-o pipefail`, so the pipeline took head's exit status and
+    # discarded curl's. The whole point of the step is to be the one red that
+    # says "nothing was served", and for one run it was a green that said the
+    # opposite.
     - name: Confirm the store answers on the resolved hostname
+      shell: bash
       env:
         BASE_URL: ${{ steps.warden.outputs.base_url }}
-      run: curl --silent --show-error --fail --insecure --head "$BASE_URL" | head -1
+      run: |
+        STATUS="$(curl --silent --show-error --insecure --output /dev/null --write-out '%{http_code}' "$BASE_URL")"
+        echo "${BASE_URL} -> ${STATUS}"
+
+        if [ "${STATUS}" != "200" ]; then
+          echo "::error::the store answered ${STATUS}, not 200 -- nothing below this ran against a working store"
+          exit 1
+        fi
 
     # What the gate ran against, probed from the running stack rather than
     # echoed back from the inputs: a version input can be a constraint, the
@@ -349,6 +365,37 @@ jobs:
         MAGENTO_ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
         MAGENTO_ADMIN_FRONTNAME: ${{ inputs.backend_frontname }}
       run: bash -c "$TEST_COMMAND"
+
+    # What the stack was doing when something went wrong. Without this, "the
+    # store answered 404" is where the investigation stops: the containers go
+    # away with the runner, and nothing in the log says whether nginx was up,
+    # whether Varnish had a backend at all, or whether Traefik had a route to
+    # send the request to.
+    #
+    # Nothing in here may fail the job -- it only runs because something else
+    # already did.
+    - name: Report what the stack was doing
+      if: failure()
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+
+        echo "::group::containers"
+        ${WARDEN} env ps || true
+        echo "::endgroup::"
+
+        for SERVICE in nginx varnish php-fpm; do
+          echo "::group::${SERVICE}"
+          ${WARDEN} env logs --tail=50 "${SERVICE}" || true
+          echo "::endgroup::"
+        done
+
+        # A Traefik 404 and a Magento 404 look identical from the outside, and
+        # only one of them is about the store.
+        echo "::group::traefik"
+        ${WARDEN} svc logs --tail=50 traefik || true
+        echo "::endgroup::"
 
     # A failing gate is read by someone deciding whether to ship, so the
     # evidence has to outlive the run.
