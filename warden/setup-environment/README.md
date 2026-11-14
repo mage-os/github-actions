@@ -70,12 +70,31 @@ before one can reach the storefront, and all three are off by default:
 | `env_name` | `mageos` | `WARDEN_ENV_NAME`. |
 | `traefik_domain` | `mageos.test` | `TRAEFIK_DOMAIN`. |
 | `traefik_subdomain` | `app` | `TRAEFIK_SUBDOMAIN`. |
+| `traefik_version` | `2.11` | `TRAEFIK_VERSION` for Warden's global services. Warden 0.14.2 defaults to `2.2`, which cannot talk to the Docker daemon on a current runner -- see below. |
 | `backend_frontname` | `admin` | Admin frontName passed to `setup:install`. |
 | `base_url` | *(empty)* | Passed as `--base-url` with `--use-rewrites=1`. Empty leaves Magento's default. |
 | `configure_host_resolution` | `0` | Resolve `<subdomain>.<domain>` to `127.0.0.1` on the runner. |
 | `run_static_content_deploy` | `0` | Run `setup:static-content:deploy`. |
 | `static_content_languages` | `en_US` | Space separated locales to deploy. |
 | `static_content_themes` | *(empty)* | Space separated themes, e.g. `Magento/luma`. Empty deploys every theme. |
+
+### Why `traefik_version` exists
+
+Warden 0.14.2 pins `traefik:${TRAEFIK_VERSION:-2.2}`, and Traefik 2.2's Docker
+provider speaks Docker API 1.24. The Docker daemon on GitHub's current runner
+image refuses anything below 1.40:
+
+```
+traefik | level=error msg="Failed to retrieve information of the docker client
+and server host: Error response from daemon: client version 1.24 is too old.
+Minimum supported API version is 1.40"
+```
+
+Traefik then reads no container labels, builds no routers, and answers **404 to
+every request**. Nothing else looks wrong: every container is up, `bin/magento`
+works inside them, and a Traefik 404 is indistinguishable from a Magento 404
+from outside. If a store answers 404 on every URL, check this before anything
+in Magento.
 
 ## Outputs
 
