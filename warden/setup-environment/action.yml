@@ -98,6 +98,17 @@ inputs:
     default: "app"
     description: "Traefik subdomain the environment is served on (TRAEFIK_SUBDOMAIN)."
 
+  traefik_version:
+    required: false
+    default: "2.11"
+    description: >
+      The Traefik image tag for the global Warden services (TRAEFIK_VERSION).
+      Warden 0.14.2 defaults this to 2.2, whose Docker provider speaks Docker
+      API 1.24. GitHub's runner image now ships a Docker daemon that refuses
+      anything below 1.40, so Traefik 2.2 cannot read container labels, builds
+      no routers, and answers 404 to every request -- while every container in
+      the environment reports healthy. 2.11 is the tag Warden itself moved to.
+
   backend_frontname:
     required: false
     default: "admin"
@@ -261,9 +272,16 @@ runs:
     - name: Warden svc up && Warden env up
       working-directory: ${{ inputs.base_directory }}
       shell: bash
+      env:
+        # Consumed by the docker-compose file Warden ships for its global
+        # services, which pins image: traefik:${TRAEFIK_VERSION:-2.2}. The
+        # default is too old to talk to the Docker daemon on a current GitHub
+        # runner; see the traefik_version input for what that failure looks
+        # like, because it does not look like a proxy problem.
+        TRAEFIK_VERSION: ${{ inputs.traefik_version }}
       run: |
           export WARDEN="$(dirname $(pwd))/warden/bin/warden"
-          ${WARDEN} svc up 
+          ${WARDEN} svc up
           ${WARDEN} env up
 
     - name: Change Directory Permissions
