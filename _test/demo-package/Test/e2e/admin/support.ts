@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import path from 'node:path';
 
 /**
@@ -51,6 +51,129 @@ export const adminSelectors = {
     menu: '.admin__menu',
     pageTitle: '.page-title',
 };
+
+/**
+ * Every admin listing -- products, customers, orders, CMS pages -- is the same
+ * Magento_Ui grid component, so one object drives all of them.
+ *
+ * It is also why a grid spec is worth more than it looks: none of this markup
+ * exists in the HTML the server sends. The table, the row count and the filter
+ * controls are rendered by Knockout from a separate mui/index/render request,
+ * so a grid that renders at all is a statement that requirejs resolved, the
+ * component bootstrapped and the data provider answered. A release that breaks
+ * any of those breaks every admin screen.
+ *
+ * @param component the listing's component name, e.g. product_listing. Needed
+ *   because the admin header carries a second grid of its own -- the
+ *   notification area -- whose loading mask is otherwise indistinguishable
+ *   from the one belonging to the grid under test.
+ */
+export function adminGrid(page: Page, component: string) {
+    // The page content, which excludes the notification grid in the header.
+    const scope = page.locator('#container');
+    // data-role="grid" rather than the class alone: the admin renders a second
+    // copy of the toolbar and the table inside a .sticky-header element, which
+    // carries the same classes. Every selector here has to say which copy it
+    // means or it matches two elements and Playwright refuses to act.
+    const table = scope.locator('table.data-grid[data-role="grid"]');
+    // The real toolbar, as a direct child of the outer wrap. The sticky copy
+    // sits a level deeper, so this relationship is what separates them.
+    const toolbar = scope.locator('.admin__data-grid-outer-wrap > .admin__data-grid-header');
+
+    return {
+        table,
+        toolbar,
+        rows: table.locator('tr.data-row'),
+        headers: table.locator('thead th'),
+        activeFilters: toolbar.locator('.admin__data-grid-filters-current._show'),
+
+        /**
+         * Waits for the grid to finish whatever request it is making. Every
+         * filter, sort and page change is an ajax round trip behind a loading
+         * mask, so without this an assertion races the rows it counts.
+         */
+        async ready(): Promise<void> {
+            // Scoped by component: the admin header carries a grid of its own
+            // -- the notification area -- whose loading mask is otherwise
+            // indistinguishable from this one's.
+            await expect(
+                page.locator(`.admin__data-grid-loading-mask[data-component*="${component}"]`),
+            ).toBeHidden();
+            await expect(table).toBeVisible();
+        },
+
+        /**
+         * The number of records the grid says it found, which comes from the
+         * collection size rather than from the rows it drew.
+         */
+        async recordsFound(): Promise<number> {
+            const text = await toolbar.locator('.admin__control-support-text').first().innerText();
+            const found = text.match(/([\d,]+)\s+records found/);
+
+            expect(found, `the grid should report how many records it found; it says "${text}"`).not.toBeNull();
+
+            return Number(found![1].replace(/,/g, ''));
+        },
+
+        /**
+         * The index of a column, by its header label. Which columns a grid
+         * shows is per-admin-user state -- saved as bookmarks, reorderable by
+         * dragging -- so a spec that wants the SKU cell asks which column that
+         * is rather than counting on it being the seventh.
+         */
+        async columnIndex(label: string): Promise<number> {
+            const labels = (await this.headers.allInnerTexts()).map((header) => header.trim());
+            const index = labels.findIndex((header) => header === label);
+
+            expect(
+                index,
+                `the grid should have a "${label}" column; it has: ${labels.join(', ')}`,
+            ).toBeGreaterThanOrEqual(0);
+
+            return index;
+        },
+
+        /** The cells of one column, top to bottom, as the grid renders them. */
+        column(index: number): Locator {
+            return this.rows.locator(`td:nth-child(${index + 1})`);
+        },
+
+        /** Opens the filter panel, sets one field and applies it. */
+        async filterBy(field: string, value: string): Promise<void> {
+            await toolbar.locator('button[data-action="grid-filter-expand"]').click();
+            await toolbar.locator(`input.admin__control-text[name="${field}"]`).fill(value);
+            await toolbar.locator('button[data-action="grid-filter-apply"]').click();
+            await this.ready();
+        },
+
+        /**
+         * Clears every applied filter. Not politeness: grid state lives in the
+         * ui_bookmark table per admin user, so a filter a spec leaves applied
+         * is still applied the next time anything opens that grid.
+         */
+        async clearFilters(): Promise<void> {
+            await toolbar.locator('button[data-action="grid-filter-reset"]').click();
+            await this.ready();
+        },
+
+        /**
+         * Starts from an unfiltered grid, whatever the last visitor left
+         * behind. Because that state is persisted per admin user rather than
+         * per session, the leak this cleans up is the suite's own: a filter
+         * spec that fails halfway, or a human clicking around the same store,
+         * otherwise decides what the next run sees. Says nothing about the
+         * store, so it asserts nothing.
+         */
+        async startUnfiltered(): Promise<void> {
+            const clear = toolbar.locator('button[data-action="grid-filter-reset"]');
+
+            if (await clear.count()) {
+                await clear.click();
+                await this.ready();
+            }
+        },
+    };
+}
 
 /*
  * There is deliberately no "dismiss whatever modal is covering the page"

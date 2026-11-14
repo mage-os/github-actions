@@ -1,10 +1,10 @@
 # Browser tests
 
 A small Playwright suite that proves a Mage-OS release is **being served**,
-**can take an order** and **lets an administrator in** -- installed, reachable
-over HTTP(S), rendering with its static content deployed, able to carry a
-guest from a category listing to a persisted order, and able to authenticate
-into the admin.
+**can take an order** and **can be administered** -- installed, reachable over
+HTTP(S), rendering with its static content deployed, able to carry a guest from
+a category listing to a persisted order, and able to let an administrator sign
+in, work a grid and create a product that a shopper can then buy.
 
 It is the canary for [`warden/setup-environment`](../../../../warden/setup-environment):
 `.github/workflows/_internal-e2e.yaml` stands a store up with that action on
@@ -15,6 +15,12 @@ every change to it and runs this suite against the result.
 | `hello-magento.spec.ts` | no | the Luma homepage renders with static content deployed |
 | `guest-checkout.spec.ts` | yes | catalog -> product -> cart -> shipping -> payment -> order |
 | `admin/login.spec.ts` | no | the admin sign-in form refuses a bad credential and accepts a good one |
+| `admin/product-grid.spec.ts` | yes | the product grid renders through Magento_Ui and filters server-side |
+| `admin/create-product.spec.ts` | no | admin form -> EAV save -> url rewrite -> indexers -> storefront -> quote |
+
+Storefront selectors live in `luma.ts`, shared by every spec that looks at a
+storefront page. A Hyva variant of this suite is that file with a different
+map, not a rewrite of the specs.
 
 ## Running it against a store
 
@@ -65,7 +71,7 @@ instead of producing a wall of identical reds.
 `admin/login.spec.ts` resets `storageState` to empty, because it is the one
 spec whose subject *is* the sign-in form. Everything else inherits the session.
 
-### Two traps worth knowing
+### Two traps in the sign-in form
 
 The password field's id is `login`, not `password` -- the id is on the field,
 `login[password]` is its name. Guessing gives a timeout that reads like a
@@ -79,6 +85,81 @@ trick the storefront specs use, and scope the form to `.login-content`. This
 was found by a negative control, not by reading markup: pointing the suite at
 a wrong frontname passed its form assertion against the storefront's hidden
 login form.
+
+### Why the grid spec runs before the create spec
+
+A grid is the whole `Magento_Ui` stack in one page: requirejs resolves the
+component, Knockout renders the table, a separate `mui/index/render` request
+answers with the data and the collection applies the filters. None of that
+markup is in the HTML the server sends, so a grid that renders at all is a
+statement that the admin's JavaScript stack works.
+
+That ordering is the point. If the UI component stack is broken, the create
+spec fails too -- and on its own it cannot tell you whether the form never
+rendered or the product could not be saved. The grid spec answers that first,
+cheaply.
+
+`admin/create-product.spec.ts` then crosses the seams a storefront-only check
+cannot reach: the form's validation, the EAV write path, the attribute set
+defaults, the stock item, url rewrite generation, the indexers that make a
+product salable, and finally the storefront and a quote. Fixtures are written
+straight to the database, so **they skip that entire write path** -- which is
+why a seeded catalog passing says nothing about whether a merchant can add a
+product.
+
+It writes data. One product per run, with a unique SKU, and the SKU is
+generated inside the test rather than at module scope so that a retry does not
+collide with what the failed attempt already saved. Point this suite at a
+throwaway store, not a long-lived one.
+
+### Traps in the admin UI components
+
+Each of these cost a red run to find, and none of them is visible in the
+markup the server sends.
+
+**Every grid toolbar and table exists twice.** The admin renders a copy of
+both inside a `.sticky-header` element, with the same classes, so
+`table.data-grid` and `button[data-action="grid-filter-expand"]` each match two
+elements and Playwright refuses to act on either. The real table is the one
+with `data-role="grid"`; the real toolbar is the one that is a *direct* child
+of `.admin__data-grid-outer-wrap`. `admin/support.ts` scopes both.
+
+**There is a second grid on every admin page.** The notification bell in the
+header is a grid component of its own, and its loading mask carries the same
+class as the one belonging to the grid under test. The mask has to be selected
+by `data-component`, which is why `adminGrid()` takes the listing name.
+
+**Grid filter state is saved per admin user, not per session.** It lives in
+the `ui_bookmark` table, so a filter a spec leaves applied is still applied the
+next time anything -- another spec, a retry, a human -- opens that grid. The
+grid spec clears its filter as an asserted step, and both specs call
+`startUnfiltered()` first so a half-failed run cannot decide what the next one
+sees. This was found the honest way: a throwaway probe script left a filter
+behind and the listing assertion went red on the next run, which is exactly
+what `> 1 row` rather than `> 0 rows` is there to catch.
+
+**The grid caches pages client-side.** Clearing a filter often re-renders from
+`Magento_Ui/js/grid/data-storage` with **no network request at all**, so
+waiting for a response hangs, and reading the record count once reads the
+number that was on screen before Knockout re-rendered. Numbers that settle
+asynchronously are asserted with `expect.poll`.
+
+**`catalog/product/new` is a 404.** The controller forwards to noroute without
+an attribute set, so the real route is
+`catalog/product/new/set/<id>/type/simple`. The create spec clicks **Add
+Product** on the grid instead, because the id of the default attribute set is
+not something a spec should hardcode.
+
+**Admin body classes are the full action name**, and only the screens that live
+in `Magento_Backend` are prefixed with `adminhtml-`. The dashboard is
+`adminhtml-dashboard-index`; the product grid is `catalog-product-index`, with
+no prefix at all.
+
+**The product form renders its collapsible sections lazily.** `url_key` is not
+in the DOM until the Search Engine Optimization section has been clicked open.
+The create spec sets the url key explicitly rather than deriving it from the
+product name, so that the storefront step is a statement about url rewrites
+instead of a guess about how a name becomes a url.
 
 ### What makes the admin reachable at all
 

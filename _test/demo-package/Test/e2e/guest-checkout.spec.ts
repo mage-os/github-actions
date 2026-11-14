@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { luma } from './luma';
 
 // The deepest path a storefront check can walk: catalog -> product -> cart ->
 // shipping -> payment -> order. It touches the layered navigation, the price
@@ -19,31 +20,6 @@ const shopper = {
     postcode: '78701',
     telephone: '5125550123',
     countryId: process.env.E2E_COUNTRY_ID ?? 'US',
-};
-
-// Every selector below is Luma's. Keeping them in one place is what makes the
-// Hyva variant of this suite a copy of this file with a different map, rather
-// than a rewrite.
-const luma = {
-    navCategory: '.navigation li.level0 > a',
-    productItem: '.product-item-info',
-    productItemLink: 'a.product-item-link',
-    addToCart: '#product-addtocart-button',
-    swatchGroup: '.swatch-attribute',
-    swatchOption: '.swatch-option:not(.disabled)',
-    optionSelect: 'select.super-attribute-select',
-    cartSuccess: '.message-success',
-    minicartCounter: '.minicart-wrapper .counter-number',
-    cartItemName: '.cart.item .product-item-name',
-    proceedToCheckout: 'button[data-role="proceed-to-checkout"]',
-    checkoutEmail: '#customer-email',
-    shippingForm: '#co-shipping-form',
-    shippingMethod: 'input[value="flatrate_flatrate"]',
-    nextButton: 'button[data-role="opc-continue"]',
-    paymentSection: '#checkout-step-payment',
-    placeOrder: '#checkout-payment-method-load button.action.checkout.primary',
-    successPageTitle: '.page-title',
-    successBlock: '.checkout-success',
 };
 
 // A configurable product will not go into the cart until every attribute has a
@@ -121,7 +97,7 @@ test.describe('Guest checkout', () => {
             await expect(page.locator('.page-title')).toBeVisible();
             // A price proves the price index ran. Out-of-stock or unindexed
             // products render a page but no add-to-cart button.
-            await expect(page.locator('.product-info-main .price').first()).toBeVisible();
+            await expect(page.locator(luma.productPrice).first()).toBeVisible();
             await expect(page.locator(luma.addToCart)).toBeEnabled();
         });
 

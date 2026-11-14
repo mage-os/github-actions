@@ -161,6 +161,12 @@ disable_admin_auth_modules: false
 test_command: "npx playwright test --project=storefront"
 ```
 
+An admin suite also **writes to the store**. The specs in this repository
+create a product per run, and the admin grids remember their filters per admin
+user in the `ui_bookmark` table. Both are fine against the throwaway store this
+workflow installs, and neither is something to point at a store anyone cares
+about.
+
 `Magento/backend` is in the `static_content_themes` default for the same
 reason: an admin spec against an undeployed admin theme waits for every asset
 to be generated on demand, and reads as a timeout rather than as a missing
