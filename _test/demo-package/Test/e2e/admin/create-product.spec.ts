@@ -38,9 +38,9 @@ const productForm = {
 };
 
 test.describe('Creating a product in the admin', () => {
-    // Longer than the suite's 120s, because the save below can take most of a
-    // minute on its own; see the step for why.
-    test.setTimeout(180_000);
+    // Longer than the suite's 120s, because the save below can take minutes on
+    // its own the first time a store ever performs one; see the step for why.
+    test.setTimeout(300_000);
 
     test('@admin creates a simple product and sells it', async ({ page }) => {
         // Inside the test, not at module scope, so that a retry gets its own
@@ -122,21 +122,26 @@ test.describe('Creating a product in the admin', () => {
         await test.step('saving the product reports success', async () => {
             await page.locator(productForm.save).click();
 
-            // Whichever message arrives, with a timeout far longer than the
-            // suite's 20s. This was flaky in CI exactly once and the shape of
-            // the flake is informative: the first attempt timed out here, and
-            // the retry passed in 10s end to end. The first product save on a
+            // Whichever message arrives, with a ceiling far above the suite's
+            // 20s. The number is empirical, not a guess: across GitHub runners
+            // the *first* save a store ever performs has taken 12s, 17s and
+            // over 90s, while every retry afterwards lands in about 15s. A
             // freshly installed store in developer mode pays for the code
             // generation along the save path, and then for the Update on Save
             // indexers -- price, EAV, product categories, catalog search --
             // which is work this gate wants happening, not work to switch off.
             //
+            // So the ceiling is high enough that runner variance produces a
+            // slow pass instead of a red gate, and retries: 1 covers the rest.
+            // If this ever fails on the retry too, the save path itself has
+            // regressed -- which is precisely what the gate exists to report.
+            //
             // Waiting for either message rather than only the success one is
-            // what keeps the generous timeout honest: a save rejected by
+            // what keeps a ceiling this generous honest: a save rejected by
             // validation renders an error at the top of the page, and that
-            // should fail in a second with the message visible, not in ninety
-            // with "element(s) not found".
-            await expect(page.locator(productForm.anyMessage).first()).toBeVisible({ timeout: 90_000 });
+            // should fail in a second with the message visible rather than in
+            // minutes with "element(s) not found".
+            await expect(page.locator(productForm.anyMessage).first()).toBeVisible({ timeout: 240_000 });
             await expect(page.locator(productForm.saved)).toContainText('You saved the product.');
             // On the edit form for a product with an id: the save redirected
             // to a persisted entity rather than re-rendering the new form with

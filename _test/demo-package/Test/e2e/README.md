@@ -112,6 +112,22 @@ generated inside the test rather than at module scope so that a retry does not
 collide with what the failed attempt already saved. Point this suite at a
 throwaway store, not a long-lived one.
 
+### The first save a store ever performs is slow
+
+`admin/create-product.spec.ts` allows four minutes for the save to report
+back, against the suite's usual twenty seconds. Across GitHub runners that
+first save has taken 12s, 17s and over 90s, while every retry afterwards
+lands in about 15s: a freshly installed store in developer mode pays for code
+generation along the save path, and then for the Update on Save indexers --
+price, EAV, product categories, catalog search -- which is work this gate
+wants happening rather than work to switch off.
+
+The ceiling is there so runner variance produces a slow pass instead of a red
+gate. If the spec ever fails on its retry as well, the save path itself has
+regressed, which is the thing worth reporting. The assertion waits for the
+success **or** the error message, so a save rejected by validation still fails
+in about a second, showing the message.
+
 ### Traps in the admin UI components
 
 Each of these cost a red run to find, and none of them is visible in the
