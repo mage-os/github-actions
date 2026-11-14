@@ -1,0 +1,411 @@
+name: E2E Tests
+
+# A reusable workflow that stands a Mage-OS store up, serves it, and points a
+# browser-based test runner at it.
+#
+# It does not know what runner that is: test_command is an input, so a caller
+# can pass grep filters, shards, a different reporter, or something that is not
+# Playwright at all, without this workflow growing an input per flag.
+#
+# Own-repo actions are referenced by full ref rather than by "./", as
+# integration.yaml and full-integration-tests.yaml do. A relative path in a
+# reusable workflow resolves against the caller's checkout, which is not this
+# repository when the caller is the release pipeline.
+
+on:
+  workflow_call:
+    inputs:
+      # What to install.
+      magento_version:
+        required: true
+        type: string
+        description: "The package to install, e.g. mage-os/project-community-edition:4.0.0."
+      magento_repository:
+        required: false
+        type: string
+        default: "https://repo.mage-os.org/"
+        description: "The composer repository to install it from. A release gate points this at the preview repository."
+      php_version:
+        required: false
+        type: string
+        default: "8.4"
+      composer_version:
+        required: false
+        type: string
+        default: "2.10.2"
+
+      # What to serve it with.
+      database:
+        required: false
+        type: string
+        default: "mariadb:11.8"
+      search:
+        required: false
+        type: string
+        default: "opensearch:3.4"
+      rabbitmq:
+        required: false
+        type: string
+        default: "rabbitmq:4.2"
+      redis:
+        required: false
+        type: string
+        default: "redis:7.4"
+      varnish:
+        required: false
+        type: string
+        default: "varnish:8.0"
+      static_content_themes:
+        required: false
+        type: string
+        default: "Magento/luma Magento/backend"
+        description: "Space separated themes to deploy static content for. Empty deploys every theme, which is considerably slower. Magento/backend is in the default because an admin spec against an undeployed admin theme reads as a timeout rather than as a missing deploy."
+      backend_frontname:
+        required: false
+        type: string
+        default: "admin"
+        description: "setup:install --backend-frontname. Passed to the install and to the suite from this one place, so the two cannot disagree about the admin URL."
+      disable_admin_auth_modules:
+        required: false
+        type: boolean
+        default: true
+        description: "Disable Magento_TwoFactorAuth and MageOS_PasskeyAuth so a suite can sign in to the admin. Magento offers no configuration flag for this; see the step for why. Set false for a storefront-only run, which then leaves 2FA in place."
+
+      # Where the suite comes from. The default is the suite this repository
+      # carries for its own canary; a caller with a suite of its own overrides
+      # both of these.
+      suite_repository:
+        required: false
+        type: string
+        default: "mage-os/github-actions"
+      suite_ref:
+        required: false
+        type: string
+        default: "main"
+      test_directory:
+        required: false
+        type: string
+        default: "_test/demo-package/Test/e2e"
+        description: "The suite's directory, relative to the root of suite_repository."
+
+      # How to run it.
+      test_command:
+        required: false
+        type: string
+        default: "npx playwright test"
+        description: >
+          Run from test_directory with PLAYWRIGHT_BASE_URL set. Keep evidence
+          policy (trace, video, screenshot) in the suite's own config rather
+          than in flags here: a CLI flag overrides the config, and a gate that
+          records a trace for every passing test uploads a large artifact for
+          no benefit.
+      node_version:
+        required: false
+        type: string
+        default: "22"
+      fixture_profile:
+        required: false
+        type: string
+        default: "_test/demo-package/Test/e2e/fixtures/mageos-e2e.xml"
+        description: >
+          A performance-toolkit profile, relative to the root of
+          suite_repository, seeded before the tests run. Empty skips seeding,
+          which is right for a suite that asserts only on what a bare
+          setup:install provides.
+
+      # Housekeeping.
+      timeout_minutes:
+        required: false
+        type: number
+        default: 60
+      artifact_name:
+        required: false
+        type: string
+        default: "playwright-report"
+        description: "Give this a release-specific name when several gates upload to the same run."
+      artifact_retention_days:
+        required: false
+        type: number
+        default: 30
+
+    secrets:
+      composer_auth:
+        required: false
+
+    outputs:
+      base_url:
+        description: "The URL the store was served on."
+        value: ${{ jobs.e2e.outputs.base_url }}
+
+jobs:
+  e2e:
+    name: "e2e tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    outputs:
+      base_url: ${{ steps.warden.outputs.base_url }}
+
+    env:
+      TRAEFIK_DOMAIN: mageos.test
+      TRAEFIK_SUBDOMAIN: app
+      # The suite is checked out here, and the tests run in SUITE/<dir>.
+      SUITE: suite
+      # What warden/setup-environment's admin:user:create step makes. The
+      # action hardcodes these, so they are not inputs: an input a caller
+      # could change without the store changing would only ever be a lie.
+      # Not a secret either -- a throwaway store for the length of the job.
+      ADMIN_USER: "admin"
+      ADMIN_PASSWORD: "abcABC123"
+
+    steps:
+    # Not at the workspace root: warden/setup-environment checks the Warden CLI
+    # out into warden/ there, and base_directory has to sit exactly one level
+    # below it.
+    - name: Check out the test suite
+      uses: actions/checkout@v6
+      with:
+        repository: ${{ inputs.suite_repository }}
+        ref: ${{ inputs.suite_ref }}
+        path: suite
+
+    - name: Create the Mage-OS project
+      uses: mage-os/github-actions/setup-magento@main
+      with:
+        php-version: ${{ inputs.php_version }}
+        tools: "composer:v2"
+        mode: extension
+        magento_repository: ${{ inputs.magento_repository }}
+        magento_version: ${{ inputs.magento_version }}
+        composer_auth: ${{ secrets.composer_auth }}
+
+    - name: Serve the store in Warden
+      id: warden
+      uses: mage-os/github-actions/warden/setup-environment@main
+      with:
+        base_directory: "./_ghamagento"
+        php_version: ${{ inputs.php_version }}
+        composer_version: ${{ inputs.composer_version }}
+        database: ${{ inputs.database }}
+        search: ${{ inputs.search }}
+        rabbitmq: ${{ inputs.rabbitmq }}
+        redis: ${{ inputs.redis }}
+        varnish: ${{ inputs.varnish }}
+        run_composer_install: 1
+        run_setup_install: 1
+        run_admin_user_creation: 1
+        run_magento_config_preset: 1
+        run_reindex: 1
+        traefik_domain: ${{ env.TRAEFIK_DOMAIN }}
+        traefik_subdomain: ${{ env.TRAEFIK_SUBDOMAIN }}
+        backend_frontname: ${{ inputs.backend_frontname }}
+        base_url: "https://${{ env.TRAEFIK_SUBDOMAIN }}.${{ env.TRAEFIK_DOMAIN }}/"
+        configure_host_resolution: 1
+        run_static_content_deploy: 1
+        static_content_themes: ${{ inputs.static_content_themes }}
+
+    # Separate from the test run so that "the store was never reachable" and
+    # "the store rendered the wrong thing" are different red steps.
+    #
+    # The status is captured and compared rather than piped into head. This
+    # step used to be `curl --fail ... | head -1`, which reported a 404 and
+    # passed anyway: a GitHub `run:` without `shell: bash` gets `bash -e`
+    # without `-o pipefail`, so the pipeline took head's exit status and
+    # discarded curl's. The whole point of the step is to be the one red that
+    # says "nothing was served", and for one run it was a green that said the
+    # opposite.
+    - name: Confirm the store answers on the resolved hostname
+      shell: bash
+      env:
+        BASE_URL: ${{ steps.warden.outputs.base_url }}
+      run: |
+        STATUS="$(curl --silent --show-error --insecure --output /dev/null --write-out '%{http_code}' "$BASE_URL")"
+        echo "${BASE_URL} -> ${STATUS}"
+
+        if [ "${STATUS}" != "200" ]; then
+          echo "::error::the store answered ${STATUS}, not 200 -- nothing below this ran against a working store"
+          exit 1
+        fi
+
+    # What the gate ran against, probed from the running stack rather than
+    # echoed back from the inputs: a version input can be a constraint, the
+    # repository can resolve it differently than expected, and a service tag
+    # does not carry its patch level. A failing release gate has to be able to
+    # say "it broke on OpenSearch 3.3.2", not "we asked for 3.3".
+    #
+    # Nothing here can fail the job. A probe that comes back empty reports
+    # "unknown" -- a disabled service is not a broken store.
+    - name: Record the stack under test
+      id: stack
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        # Stderr is captured too: varnishd -V writes its version there.
+        probe() { ${WARDEN} env exec -T "$1" "${@:2}" 2>&1 | tr -d '\r' || true; }
+
+        RAW="$(probe php-fpm bin/magento --version | head -1)"
+        echo "${RAW}"
+        MAGEOS="$(printf '%s' "${RAW}" | sed -n 's/.*CLI \([0-9][^ ]*\).*/\1/p')"
+        MAGENTO="$(printf '%s' "${RAW}" | sed -n 's/.*based on Magento \([0-9][^)]*\).*/\1/p')"
+
+        PHP="$(probe php-fpm php -r 'echo PHP_VERSION;' | head -1)"
+        DB="$(probe db mariadb --version | sed -n 's/.*from \([0-9][0-9.]*\).*/\1/p' | head -1)"
+        SEARCH="$(probe php-fpm curl -s http://opensearch:9200 | tr -d '\n' | sed -n 's/.*"number"[^"]*"\([^"]*\)".*/\1/p')"
+        REDIS="$(probe redis redis-server --version | sed -n 's/.*v=\([0-9][0-9.]*\).*/\1/p' | head -1)"
+        VARNISH="$(probe varnish varnishd -V | sed -n 's/.*varnish-\([0-9][0-9.]*\).*/\1/p' | head -1)"
+
+        # Only the application versions reach the tests. A spec may reasonably
+        # branch on those; none should branch on a Redis patch level.
+        echo "mageos=${MAGEOS:-unknown}" >> $GITHUB_OUTPUT
+        echo "magento=${MAGENTO:-unknown}" >> $GITHUB_OUTPUT
+
+        {
+          echo "### Stack under test"
+          echo
+          echo "| | Version |"
+          echo "| --- | --- |"
+          echo "| Mage-OS | ${MAGEOS:-unknown} |"
+          echo "| Magento | ${MAGENTO:-unknown} |"
+          echo "| PHP | ${PHP:-unknown} |"
+          echo "| Database | ${DB:-unknown} |"
+          echo "| Search | ${SEARCH:-unknown} |"
+          echo "| Redis | ${REDIS:-unknown} |"
+          echo "| Varnish | ${VARNISH:-unknown} |"
+        } >> $GITHUB_STEP_SUMMARY
+
+    # A bare setup:install has nothing to buy. The command reindexes itself.
+    # Streamed in rather than copied: the project directories are owned by the
+    # container's user.
+    # Magento has no switch for two-factor authentication. There is no enable
+    # flag, and leaving twofactorauth/general/force_providers empty does not
+    # help: ControllerActionPredispatch still routes a fresh admin user to
+    # tfa/tfa/index, which redirects to tfa/tfa/requestconfig. Disabling the
+    # module is the only way in. MageOS_PasskeyAuth requires it and registers
+    # an admin 2FA provider, so both have to go in one command or dependency
+    # validation refuses it.
+    #
+    # The cost is stated rather than hidden: a run with this on does not cover
+    # admin 2FA. Covering it means driving a TOTP provider from its shared
+    # secret, which is worth doing, as its own spec.
+    - name: Open the admin to the test suite
+      if: inputs.disable_admin_auth_modules
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+
+        MODULES=()
+        for MODULE in MageOS_PasskeyAuth Magento_TwoFactorAuth; do
+          # module:status exits 0 even for a module that is not installed, so
+          # its output is the only signal. MageOS_PasskeyAuth is Mage-OS only,
+          # and this workflow should still work against a Magento install.
+          if ${WARDEN} env exec -T php-fpm bin/magento module:status "${MODULE}" 2>&1 | grep -q 'does not exist'; then
+            echo "${MODULE} is not installed"
+          else
+            MODULES+=("${MODULE}")
+          fi
+        done
+
+        # An array, not a string: module:disable takes the names as separate
+        # arguments and reads a single space-joined string as one unknown
+        # module name. Re-running it changes nothing and still exits 0.
+        if [ ${#MODULES[@]} -gt 0 ]; then
+          ${WARDEN} env exec -T php-fpm bin/magento module:disable "${MODULES[@]}"
+        fi
+
+        # Already the default. Pinned so the suite does not rely on one: it
+        # gates Magento_AdminAnalytics' usage-data modal, which would
+        # otherwise cover the dashboard on first sign-in.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set admin/usage/enabled 0
+
+        # The admin login CAPTCHA is on by default (admin/captcha/enable 1) in
+        # after_fail mode, and asks for one after three failed attempts per
+        # login name -- counted in the captcha_log table, which survives
+        # across runs against a long-lived store. A suite that asserts a bad
+        # credential is refused produces exactly those failures, so leaving
+        # this on lets the negative control poison the positive one, and the
+        # symptom is an "Incorrect CAPTCHA" that looks nothing like the cause.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set admin/captcha/enable 0
+        ${WARDEN} env exec -T php-fpm bin/magento cache:flush
+
+    - name: Seed the catalog
+      if: inputs.fixture_profile != ''
+      working-directory: ./_ghamagento
+      shell: bash
+      env:
+        PROFILE: ${{ github.workspace }}/${{ env.SUITE }}/${{ inputs.fixture_profile }}
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        ${WARDEN} env exec -T php-fpm bash -c 'cat > /tmp/fixture-profile.xml' < "${PROFILE}"
+        ${WARDEN} env exec -T php-fpm bin/magento setup:performance:generate-fixtures /tmp/fixture-profile.xml
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+        cache: npm
+        cache-dependency-path: ${{ env.SUITE }}/${{ inputs.test_directory }}/package-lock.json
+
+    - name: Install the test runner
+      working-directory: ${{ env.SUITE }}/${{ inputs.test_directory }}
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+
+    # The command arrives through the environment rather than interpolated into
+    # the script, so its quoting is bash's problem and not the expression
+    # engine's.
+    - name: Run the tests
+      working-directory: ${{ env.SUITE }}/${{ inputs.test_directory }}
+      env:
+        TEST_COMMAND: ${{ inputs.test_command }}
+        PLAYWRIGHT_BASE_URL: ${{ steps.warden.outputs.base_url }}
+        MAGEOS_VERSION: ${{ steps.stack.outputs.mageos }}
+        MAGENTO_VERSION: ${{ steps.stack.outputs.magento }}
+        MAGENTO_ADMIN_USER: ${{ env.ADMIN_USER }}
+        MAGENTO_ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
+        MAGENTO_ADMIN_FRONTNAME: ${{ inputs.backend_frontname }}
+      run: bash -c "$TEST_COMMAND"
+
+    # What the stack was doing when something went wrong. Without this, "the
+    # store answered 404" is where the investigation stops: the containers go
+    # away with the runner, and nothing in the log says whether nginx was up,
+    # whether Varnish had a backend at all, or whether Traefik had a route to
+    # send the request to.
+    #
+    # Nothing in here may fail the job -- it only runs because something else
+    # already did.
+    - name: Report what the stack was doing
+      if: failure()
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+
+        echo "::group::containers"
+        ${WARDEN} env ps || true
+        echo "::endgroup::"
+
+        for SERVICE in nginx varnish php-fpm; do
+          echo "::group::${SERVICE}"
+          ${WARDEN} env logs --tail=50 "${SERVICE}" || true
+          echo "::endgroup::"
+        done
+
+        # A Traefik 404 and a Magento 404 look identical from the outside, and
+        # only one of them is about the store.
+        echo "::group::traefik"
+        ${WARDEN} svc logs --tail=50 traefik || true
+        echo "::endgroup::"
+
+    # A failing gate is read by someone deciding whether to ship, so the
+    # evidence has to outlive the run.
+    - name: Upload the test report
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: |
+          ${{ env.SUITE }}/${{ inputs.test_directory }}/playwright-report
+          ${{ env.SUITE }}/${{ inputs.test_directory }}/test-results
+        retention-days: ${{ inputs.artifact_retention_days }}
+        if-no-files-found: ignore
