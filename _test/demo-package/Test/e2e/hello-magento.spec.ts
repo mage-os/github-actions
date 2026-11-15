@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 // A 200 proves very little on its own: the admin login page, a CMS no-route
 // page and a Magento error page all answer 200 and all carry a header, a

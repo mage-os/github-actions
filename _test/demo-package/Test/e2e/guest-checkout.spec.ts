@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { luma } from './luma';
 
 // The deepest path a storefront check can walk: catalog -> product -> cart ->

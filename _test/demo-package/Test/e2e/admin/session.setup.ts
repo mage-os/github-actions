@@ -1,4 +1,4 @@
-import { expect, test as setup } from '@playwright/test';
+import { expect, test as setup } from '../fixtures';
 import { admin, adminSelectors, adminStateFile, signIn } from './support';
 
 /**

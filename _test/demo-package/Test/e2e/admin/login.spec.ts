@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../fixtures';
 import { admin, adminSelectors, adminUrl, signIn } from './support';
 
 // These specs are about the sign-in form itself, so they start with no session

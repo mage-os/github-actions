@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../fixtures';
 import { adminSelectors, adminUrl } from './support';
 import { categoryUrl, luma } from '../luma';
 

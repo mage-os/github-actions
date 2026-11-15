@@ -280,6 +280,56 @@ if a future release does grow a blocking dialog on first sign-in, the right
 outcome is a red test with a screenshot of it, not a suite that dismisses it
 and reports green.
 
+## Every page is watched for errors nothing asserts on
+
+`fixtures.ts` replaces Playwright's `page` fixture with one that watches three
+things and fails the test if any of them fires. Specs import `test` and
+`expect` from it instead of from `@playwright/test`, and get the check for
+free on every page they touch.
+
+| Signal | Catches |
+| --- | --- |
+| `pageerror` | an uncaught JS exception -- a missing requirejs module, a mixin that no longer resolves, a knockout binding against a property that moved |
+| `console` (errors) | anything the store's own code logged as an error |
+| `response` (>= 400) | any failed request, including the ones no assertion looks at |
+
+The third one is the reason this exists. **A failed XHR breaks no assertion.**
+`Magento_Ui` renders a listing from its client-side page cache and keeps the
+last good state when a request fails, so a grid whose data provider returns
+500 goes on showing the rows it already had. Measured on Mage-OS 4.0.0: a 500
+on `mui/index/render` left the row count unchanged at 20, raised no
+`pageerror`, and `product-grid.spec.ts` -- which asserts `rows > 1` -- passed.
+Private content behaves the same way: a 500 on `customer/section/load` leaves
+the minicart showing whatever `localStorage` last held.
+
+A 500 or 404 on the *main document* usually does fail a spec, because the
+content it asserts on is not there, and two specs check `response.status()`
+outright. The gap is everything requested in the background, which is most of
+what a Magento page does after it renders.
+
+It was committed strict only after a report-only run of the whole suite.
+Eleven specs produced exactly one recurring finding: `GET
+/guest-carts/<id>/totals` answering 404 about 460ms after
+`payment-information` returned 200. The checkout refreshes the cart totals
+after the order is placed, by which point the quote it is asking about has
+been consumed -- the shopper is on the success page and nothing is broken.
+That is the single entry in the ignore list, scoped to that path and that
+status so it cannot hide a cart that 404s while a shopper is still trying to
+check out.
+
+The browser's own `Failed to load resource` console line is also ignored, for
+a different reason: it is a URL-less echo of something the response listener
+already reports with a status, a method and a full URL. Keeping both counts
+every HTTP finding twice and the duplicate is the less useful of the two.
+
+**Keep that ignore list short.** A check like this is only as good as its
+ignore list, and a growing list is how such a check quietly dies. Anything new
+is a finding until someone proves otherwise, in a comment, in the file.
+
+Demonstrated red the same way as everything else here: 404 a background XHR
+that no assertion mentions -- `js-translation.json` will do -- and the spec
+passes every one of its own assertions and then fails on the fixture.
+
 ## Why the assertions look like that
 
 A `200` is not evidence of a storefront. The admin login page, a CMS no-route
