@@ -4,7 +4,8 @@ A small Playwright suite that proves a Mage-OS release is **being served**,
 **can take an order** and **can be administered** -- installed, reachable over
 HTTP(S), rendering with its static content deployed, able to carry a guest from
 a category listing to a persisted order, and able to let an administrator sign
-in, work a grid and create a product that a shopper can then buy.
+in, work a grid and create the catalog and customer records a store is
+made of.
 
 It is the canary for [`warden/setup-environment`](../../../../warden/setup-environment):
 `.github/workflows/_internal-e2e.yaml` stands a store up with that action on
@@ -17,6 +18,8 @@ every change to it and runs this suite against the result.
 | `admin/login.spec.ts` | no | the admin sign-in form refuses a bad credential and accepts a good one |
 | `admin/product-grid.spec.ts` | yes | the product grid renders through Magento_Ui and filters server-side |
 | `admin/create-product.spec.ts` | no | admin form -> EAV save -> url rewrite -> indexers -> storefront -> quote |
+| `admin/create-category.spec.ts` | yes | category tree -> save -> url rewrite -> category index -> storefront listing + menu |
+| `admin/create-customer.spec.ts` | no | customer form -> save -> read-back -> the storefront refuses the address twice |
 
 Storefront selectors live in `luma.ts`, shared by every spec that looks at a
 storefront page. A Hyva variant of this suite is that file with a different
@@ -176,6 +179,64 @@ in the DOM until the Search Engine Optimization section has been clicked open.
 The create spec sets the url key explicitly rather than deriving it from the
 product name, so that the storefront step is a statement about url rewrites
 instead of a guess about how a name becomes a url.
+
+**The two catalog forms spell the same section differently.** The product
+form's SEO collapsible is `data-index="search-engine-optimization"`, with
+hyphens. The category form's is `search_engine_optimization`, with underscores.
+Same label on screen, two modules' `ui_component` XML underneath.
+
+**The category page is not a grid page.** `catalog/category/` opens the root
+category's own edit form -- hence a `catalog-category-edit` body class on what
+looks like an index -- with a jstree sidebar beside it. The new-subcategory
+form is `catalog-category-add`.
+
+**Products are assigned to a category through a legacy grid widget**, not a UI
+component listing. `#catalog_category_products_table` has its own filter row
+that applies on **Enter**, row checkboxes with **no name attribute** (the value
+is the product id), and no loading mask worth waiting on. `adminGrid()` does
+not apply to it and should not be stretched to fit: it is a different thing
+that happens to look similar.
+
+That grid is also where a filter race is easiest to write by accident. The
+unfiltered table already has rows, so polling for "more than zero rows" is
+satisfied by the table that was on screen *before* Enter was pressed. The
+first version of the category spec read a product name off the stale table,
+checked a box in the table that replaced it, and then reported that the
+storefront had listed the wrong product. Poll for something only the filtered
+grid can satisfy -- every SKU cell matching the filter -- and re-assert the
+row's identity after checking its box.
+
+**The customer grid is the one grid a save does not update.**
+`Magento\Customer\Model\Customer::reindex()` is a no-op while the
+`customer_grid` indexer is scheduled, which is its default and which nothing
+here changes:
+
+```php
+public function reindex()
+{
+    if (!$this->getIndexer()->isScheduled()) {
+        $this->getIndexer()->reindexRow($this->getId());
+    }
+}
+```
+
+So on any store without cron running -- every CI store, including this gate's
+-- a customer saved in the admin is simply absent from the customer grid. The
+customer spec therefore proves persistence from the edit form and from the
+storefront and never from the grid. An assertion on the grid there would be
+red against a store that is working correctly, which is the worst kind of
+assertion to put in front of someone deciding whether to ship.
+
+**A saved customer's form opens on a different tab than a new one's.** The new
+form shows Account Information; after a save the page opens on Customer View,
+a read-only summary, and the fields are not in the DOM until `#tab_customer`
+is clicked. The spec uses **Save and Continue Edit** rather than Save, because
+Save redirects to the grid -- see above for why that is a dead end.
+
+**The fixture profile's simple products start at `product_dynamic_2`.** There
+is no `product_dynamic_1`. A spec that hardcodes the first index fails on a
+correctly seeded store, so the category spec filters on the `product_dynamic`
+prefix and reads the SKU and name it finds out of the DOM.
 
 ### What makes the admin reachable at all
 

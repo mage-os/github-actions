@@ -8,6 +8,10 @@
  */
 export const luma = {
     navCategory: '.navigation li.level0 > a',
+    // The category/search listing wrapper. Scoping to it matters: Luma's
+    // sidebar blocks render product items too, so an unscoped product-item
+    // count on a category page counts things that are not in the category.
+    productList: '.products.wrapper',
     productItem: '.product-item-info',
     productItemLink: 'a.product-item-link',
     pageTitle: '.page-title',
@@ -28,6 +32,18 @@ export const luma = {
     placeOrder: '#checkout-payment-method-load button.action.checkout.primary',
     successPageTitle: '.page-title',
     successBlock: '.checkout-success',
+
+    // Account registration. Luma's own form, so it belongs in Luma's map:
+    // firstname and lastname come from a shared name fieldset template, which
+    // is why their ids carry no prefix while the email field's does.
+    registerForm: '#form-validate',
+    registerFirstName: '#firstname',
+    registerLastName: '#lastname',
+    registerEmail: '#email_address',
+    registerPassword: '#password',
+    registerPasswordConfirm: '#password-confirmation',
+    registerSubmit: '#form-validate button[type="submit"]',
+    errorMessage: '.message-error',
 };
 
 /**
@@ -41,4 +57,15 @@ export const productUrlSuffix = process.env.MAGENTO_PRODUCT_URL_SUFFIX ?? '.html
 /** The storefront path for a product url key, e.g. storefrontUrl('a-product'). */
 export function productUrl(urlKey: string): string {
     return `/${urlKey}${productUrlSuffix}`;
+}
+
+export const categoryUrlSuffix = process.env.MAGENTO_CATEGORY_URL_SUFFIX ?? '.html';
+
+/**
+ * Separate from productUrl because Magento configures the two suffixes
+ * separately -- catalog/seo/category_url_suffix and product_url_suffix -- and
+ * a store that changed one and not the other is a perfectly ordinary store.
+ */
+export function categoryUrl(urlKey: string): string {
+    return `/${urlKey}${categoryUrlSuffix}`;
 }

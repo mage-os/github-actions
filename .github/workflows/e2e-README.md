@@ -162,10 +162,11 @@ test_command: "npx playwright test --project=storefront"
 ```
 
 An admin suite also **writes to the store**. The specs in this repository
-create a product per run, and the admin grids remember their filters per admin
-user in the `ui_bookmark` table. Both are fine against the throwaway store this
-workflow installs, and neither is something to point at a store anyone cares
-about.
+create a product, a category and a customer per run, the category is assigned a
+fixture product and appears in the storefront menu, and the admin grids
+remember their filters per admin user in the `ui_bookmark` table. All of that
+is fine against the throwaway store this workflow installs, and none of it is
+something to point at a store anyone cares about.
 
 `Magento/backend` is in the `static_content_themes` default for the same
 reason: an admin spec against an undeployed admin theme waits for every asset
