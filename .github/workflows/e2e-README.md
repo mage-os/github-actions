@@ -226,17 +226,21 @@ jobs:
       magento_version: "mage-os/project-community-edition:4.0.0"
 ```
 
-Gating a release on the artifact that is about to be tagged:
+Gating a release on the artifact that is about to be tagged. It has to run
+after the packages are deployed, because that is where it installs them from,
+and before the tag is pushed, because the tag is the half of a release that is
+expensive to retract:
 
 ```yaml
 jobs:
-  storefront-check:
+  e2e-check:
+    name: "storefront & admin check"
     needs: [ deploy ]
     uses: mage-os/github-actions/.github/workflows/e2e.yaml@main
     with:
       magento_repository: ${{ inputs.repo }}
       magento_version: "mage-os/project-community-edition:${{ inputs.mageos_release }}"
-      artifact_name: "storefront-check-${{ inputs.mageos_release }}"
+      artifact_name: "e2e-report-${{ inputs.mageos_release }}"
 ```
 
 Running a suite of your own:
