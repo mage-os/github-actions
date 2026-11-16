@@ -13,6 +13,12 @@ export const admin = {
     // navigate straight to an admin route instead of clicking through menus,
     // which is the difference between an admin suite that is maintainable and
     // one that breaks whenever the menu is reordered.
+    //
+    // It is not free, though: a bare admin route is only served while
+    // admin/security/use_form_key is off, and a stock store ships it on. See
+    // admin/menu-navigation.spec.ts, which navigates the way that setting
+    // requires, and the step in .github/workflows/e2e.yaml that turns it off
+    // for everything else here.
     frontname: process.env.MAGENTO_ADMIN_FRONTNAME ?? 'admin',
 };
 
