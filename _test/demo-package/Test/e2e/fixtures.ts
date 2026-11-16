@@ -44,6 +44,33 @@ import path from 'node:path';
 const ignoredConsole: RegExp[] = [/^Failed to load resource/];
 
 /**
+ * Uncaught exceptions that are not findings. One entry, and it is a judgement
+ * call rather than an obviously benign one, so it is written out in full.
+ *
+ * Mage-OS enables cross-document view transitions by default --
+ * MageOS_ThemeOptimization renders `@view-transition { navigation: auto; }`
+ * on every storefront page, with system/view_transitions/enable defaulting
+ * to 1. Under automation the navigations come faster than a person's, and
+ * Chrome intermittently aborts the transition in flight:
+ *
+ *     Transition was aborted because of invalid state.
+ *     ViewTransition opt-in disabled
+ *
+ * Seen in CI on category and product pages, on the first attempt only, with
+ * the retry clean. It is the abort of a cosmetic transition, not a broken
+ * store, and the shopper sees a rendered page either way.
+ *
+ * It is ignored rather than fixed here because a gate that reports a flake is
+ * a gate people learn to re-run, which costs more than this error does. It is
+ * still worth an upstream report: the module's own source notes that some
+ * in-app browsers "never finish" the transition and leave the page blank, so
+ * this feature has failure modes that a cosmetic label does not cover.
+ * Narrow on purpose -- any other uncaught exception, including any other
+ * view-transition failure, is still a finding.
+ */
+const ignoredPageErrors: RegExp[] = [/^Transition was aborted because of invalid state\./];
+
+/**
  * HTTP responses that are not findings. One entry, and it has to stay this
  * narrow.
  *
@@ -70,7 +97,9 @@ export const test = base.extend({
         const findings: Finding[] = [];
 
         page.on('pageerror', (error) => {
-            findings.push({ kind: 'pageerror', detail: error.message.split('\n')[0], where: page.url() });
+            const detail = error.message.split('\n')[0];
+            if (ignoredPageErrors.some((pattern) => pattern.test(detail))) return;
+            findings.push({ kind: 'pageerror', detail, where: page.url() });
         });
 
         page.on('console', (message) => {

@@ -317,6 +317,17 @@ That is the single entry in the ignore list, scoped to that path and that
 status so it cannot hide a cart that 404s while a shopper is still trying to
 check out.
 
+A third entry was added after the first rehearsal with Varnish owning the
+page cache: Mage-OS enables cross-document view transitions by default
+(`MageOS_ThemeOptimization`, `system/view_transitions/enable` = 1), and under
+automation Chrome intermittently aborts one in flight with `Transition was
+aborted because of invalid state. ViewTransition opt-in disabled`. It showed
+up on a category and a product page, first attempt only, retry clean. That is
+a cosmetic transition aborting, not a broken store -- but it is worth an
+upstream report rather than only an ignore entry, because the module's own
+source notes that some in-app browsers never finish the transition and leave
+the page blank.
+
 The browser's own `Failed to load resource` console line is also ignored, for
 a different reason: it is a URL-less echo of something the response listener
 already reports with a status, a method and a full URL. Keeping both counts
