@@ -1,5 +1,6 @@
 import { expect, test } from '../fixtures';
 import { adminGrid, adminSelectors, adminUrl } from './support';
+import { asShopper } from '../storefront';
 import { luma } from '../luma';
 
 /**
@@ -122,6 +123,9 @@ test.describe('Creating a customer in the admin', () => {
             // the address up within the website the admin form assigned, so a
             // customer saved to the wrong website -- or not committed at all
             // -- registers happily here and the spec goes red.
+            // As a visitor, not as the signed-in administrator this spec
+            // has been so far. See asShopper().
+            await asShopper(page);
             await page.goto('/customer/account/create/');
             await expect(page.locator(luma.registerForm)).toBeVisible();
 

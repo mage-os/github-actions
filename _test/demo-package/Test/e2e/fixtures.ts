@@ -71,22 +71,36 @@ const ignoredConsole: RegExp[] = [/^Failed to load resource/];
 const ignoredPageErrors: RegExp[] = [/^Transition was aborted because of invalid state\./];
 
 /**
- * HTTP responses that are not findings. One entry, and it has to stay this
- * narrow.
+ * HTTP responses that are not findings. Two entries, and they are the same
+ * phenomenon: a request Magento's checkout issues against the quote that
+ * placing the order has just consumed.
  *
- * Magento's checkout refreshes the cart totals after the order is placed.
- * Measured on Mage-OS 4.0.0: payment-information returns 200 at T, and
- * GET /guest-carts/<id>/totals returns 404 at T+460ms, because the quote the
- * place-order call just consumed is no longer an active guest cart. The
- * shopper is on the success page by then and nothing is broken.
+ * The masked id of a guest cart stops resolving the moment the quote becomes
+ * an order, so anything still in flight -- or fired by a component reacting to
+ * the last change -- comes back 404. Measured on Mage-OS 4.0.0, by logging
+ * every /rest/ response with its offset from the start of the test and
+ * repeating the checkout spec:
  *
- * Scoped to that one path and that one status rather than to 404s, or to
- * /rest/ 404s, so it cannot hide a cart that 404s while the shopper is still
- * trying to check out. That failure would also break the spec's own
- * assertions -- totals would not render and the order would not be placed --
- * which is what makes an ignore this narrow safe to carry.
+ *     +10164ms  200 POST  .../payment-information
+ *     +10645ms  404 GET   .../totals                      (+481ms)
+ *
+ *     +7633ms   200 POST  .../payment-information
+ *     +7709ms   404 POST  .../estimate-shipping-methods    (+76ms)
+ *
+ * Which of the two happens is a race -- in six repeats, three were clean, two
+ * ended on totals and one on estimate-shipping-methods. The shopper is on the
+ * success page by then and nothing is broken.
+ *
+ * Each entry is scoped to one path and one method and one status, rather than
+ * to 404s, to /rest/ 404s, or to /guest-carts/ 404s. That matters: a cart that
+ * 404s while the shopper is still checking out has to stay a finding. It would
+ * also break the spec's own assertions -- no totals, no order -- which is what
+ * makes ignores this narrow safe to carry.
  */
-const ignoredHttp: RegExp[] = [/^404 GET xhr \/rest\/\S+\/guest-carts\/\w+\/totals/];
+const ignoredHttp: RegExp[] = [
+    /^404 GET xhr \/rest\/\S+\/guest-carts\/\w+\/totals/,
+    /^404 POST xhr \/rest\/\S+\/guest-carts\/\w+\/estimate-shipping-methods/,
+];
 
 const logFile = path.resolve(__dirname, 'test-results/js-errors.jsonl');
 

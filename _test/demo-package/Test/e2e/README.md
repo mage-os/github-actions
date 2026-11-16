@@ -15,16 +15,21 @@ every change to it and runs this suite against the result.
 | --- | --- | --- |
 | `hello-magento.spec.ts` | no | the Luma homepage renders with static content deployed |
 | `guest-checkout.spec.ts` | yes | catalog -> product -> cart -> shipping -> payment -> order |
+| `product-page.spec.ts` | yes | the product page's own details, and a cart whose arithmetic adds up |
+| `customer-account.spec.ts` | no | register -> signed in -> sign out -> sign in, and a refused credential |
 | `admin/login.spec.ts` | no | the admin sign-in form refuses a bad credential and accepts a good one |
 | `admin/product-grid.spec.ts` | yes | the product grid renders through Magento_Ui and filters server-side |
 | `admin/create-product.spec.ts` | no | admin form -> EAV save -> url rewrite -> indexers -> storefront -> quote |
 | `admin/create-category.spec.ts` | yes | category tree -> save -> url rewrite -> category index -> storefront listing + menu |
 | `admin/create-customer.spec.ts` | no | customer form -> save -> read-back -> the storefront refuses the address twice |
+| `admin/create-order.spec.ts` | yes | create-order form -> quote -> shipping rate -> payment -> order -> order grid |
 | `admin/menu-navigation.spec.ts` | no | the admin's own rendered link reaches the product grid, secret key or not |
 
 Storefront selectors live in `luma.ts`, shared by every spec that looks at a
 storefront page. A Hyva variant of this suite is that file with a different
-map, not a rewrite of the specs.
+map, not a rewrite of the specs. `storefront.ts` holds the behaviour that goes
+with them -- choosing whatever options a product requires, and reading the
+number out of a rendered price -- because that part is not theme-specific.
 
 ## Running it against a store
 
@@ -50,6 +55,80 @@ npx playwright test --project=admin        # pulls in admin-session itself
 
 There is no default base URL. A suite that silently falls back to some public
 demo store reports green about a store nobody asked about.
+
+## The storefront specs
+
+### Luma renders every login field twice, with the same ids
+
+Magento renders the authentication popup -- the one checkout opens -- into
+every page, and it carries a second copy of the sign-in form. Measured on the
+login page of Mage-OS 4.0.0:
+
+| Selector | `name` | Visible | Which copy |
+| --- | --- | --- | --- |
+| `#pass` | `password` | no | the popup |
+| `#password` | `login[password]` | yes | the form |
+| `#customer-email` | `username` | no | the popup |
+| `#email` | `login[username]` | yes | the form |
+| `#send2` | - | no | the popup |
+| `#send2` | - | yes | the form |
+
+So `#send2` matches two elements and `#pass` matches the invisible one. A spec
+that uses either waits thirty seconds for a hidden element to become
+clickable and then reports a timeout, which reads as a broken store rather
+than as a selector that found the wrong copy. Everything in `luma.ts` under
+sign-in is scoped to `.login-container`, which holds only the real form.
+
+This is the storefront twin of the `#login-form` collision the admin sign-in
+spec documents below -- and the same popup is what causes it.
+
+### Registering signs the customer in
+
+`CreatePost` calls `setCustomerDataAsLoggedIn` unless
+`customer/create_account/confirm` is set, and it is `0`. Two consequences for
+a spec:
+
+- The login page is only reachable after signing out. Visiting it while
+  signed in redirects to the dashboard -- where the only password field left
+  in the DOM is the popup's hidden copy, so the symptom is the timeout above
+  rather than a wrong URL.
+- The sign-out link is rendered **four times** and every copy is hidden until
+  the header's `.customer-welcome` switch is clicked. Clicking that switch is
+  part of the assertion: a header that never renders its customer menu is a
+  broken header.
+
+The account dashboard's Contact Information box is server rendered, so that is
+what the spec reads the saved customer back out of. The header greeting
+arrives with private content and is a worse thing to assert on.
+
+A password needs 8 characters and 3 of the 4 character classes
+(`customer/password/minimum_password_length`,
+`required_character_classes_number`).
+
+### The storefront CAPTCHA is on, for two forms
+
+`customer/captcha/enable` is `1`, for `user_login` and `user_forgotpassword`,
+in `after_fail` mode, after **three failures per login name**. So the refusal
+test signs in as an address generated per run, which can never be the third
+failure for anything -- the same trick the admin sign-in spec uses, for the
+same reason.
+
+Registration has no CAPTCHA: `user_create` appears in `always_for` but not in
+`customer/captcha/forms`, and the `forms` list is what decides.
+
+### Why a second cart spec
+
+`guest-checkout.spec.ts` walks past the product page and the cart on its way
+to an order, and it has to -- its subject is the whole path. `product-page`
+looks closely at both instead, and asserts the thing nothing else does: that
+the arithmetic holds. Unit price times quantity is the row subtotal, the rows
+are the cart subtotal, subtotal plus shipping is the order total. Totals are
+assembled by collectors that any module can replace, so that is an assertion
+about the release.
+
+Every amount is compared against another amount the store rendered, never
+against a number in the spec. A gate that goes red because a fixture
+product's price changed is a gate people switch off.
 
 ## The admin specs
 
@@ -281,6 +360,84 @@ if a future release does grow a blocking dialog on first sign-in, the right
 outcome is a red test with a screenshot of it, not a suite that dismisses it
 and reports green.
 
+### The create-order form rebuilds itself, and that is the whole problem
+
+`admin/create-order.spec.ts` drives a page from before Magento_Ui. Every
+interaction -- choosing a customer, adding a product, changing the country,
+asking for rates, picking a payment method -- is a POST to
+`sales/order_create/loadBlock` that returns fresh HTML for part of the form.
+There is no "ready" state, no loading mask that is reliably present, and the
+next action's target often does not exist until the previous reload lands.
+
+Waiting on timeouts does not work, and it fails in the worst way. Measured
+while writing the spec: add a product, read the items grid 700ms later, and it
+says **"No ordered items"** -- the add had been accepted, the grid had not
+re-rendered. A spec written that way then picks a shipping method for an empty
+order, gets no rates, and goes red three steps away from anything that is
+wrong.
+
+So the spec counts those requests and waits for them to stop -- in flight
+count at zero and nothing new for a quiet period. The quiet period matters:
+one action can trigger two reloads, so awaiting "the next response" returns on
+the first and reads a half-built form.
+
+Three more traps on that page, each of which cost a red run to find:
+
+- **The row checkbox needs `click()`, not `check()`.** It is the legacy grid
+  widget, whose selection is wired to the checkbox's click handler.
+  `check()` sets the property, the handler never runs, and the product is
+  silently not added. Same family as the category spec's product grid.
+- **The sku filter is a `LIKE`.** Filtering for `product_dynamic` returns
+  every fixture simple, so the spec reads the sku, name and price out of the
+  row it picked instead of assuming which row it got.
+- **One payment method means the radio is checked and hidden.** A shipped
+  store has exactly one active method, so the admin applies it as soon as the
+  order has a total and collapses the block to a summary line. The input is
+  in the DOM, `checked`, and invisible. Insisting on clicking it fails with
+  `42 x locator resolved to <input ... id="p_method_checkmo"
+  checked="checked"> - unexpected value "hidden"`, which reads as a missing
+  payment method rather than as one already chosen. The spec asserts
+  *attached*, expands the summary if it is collapsed, and only clicks if
+  nothing has been chosen -- so it works on a store with one method and on a
+  store with six.
+
+### The storefront half of an admin spec is a different visitor
+
+Three admin specs cross into the storefront to prove the save reached a
+shopper. They do it from a fresh session, by `asShopper(page)` in
+`storefront.ts`, and that is not tidiness either.
+
+The admin specs reuse a saved admin session, which is a cookie jar the
+storefront requests inherit: an `admin` cookie, a PHPSESSID created in the
+adminhtml area, and a `form_key` cookie that belongs to it. Magento renders
+the storefront form with that session's form key, and Magento_PageCache's
+form-key-provider rewrites the hidden input from the cookie -- so a storefront
+POST is validated against a form key the admin area also controls.
+
+Observed: `admin/create-customer.spec.ts` failed its registration step twice
+with `Invalid Form Key. Please refresh the page.` where it expected `There is
+already an account with this email address`, then passed five times in a row.
+Anything else touching that admin session -- a second run against the same
+store, a human signed in as the same account, a retry -- can rotate the key
+under a page that has already rendered it. CI has never seen it, because a
+gate's store is used once and by one run.
+
+Rather than chase that race: a shopper is not an administrator. Clearing the
+cookies costs one request's worth of session and removes the class.
+
+### One grid a save does update
+
+`admin/create-order.spec.ts` asserts the order appears in the order grid.
+`admin/create-customer.spec.ts` deliberately does not assert the customer
+grid. The difference is in the shipped configuration, not in the specs:
+`sales/general/async_indexing` is `0`, so `sales_order_grid` is written in the
+same request that saves the order, while `customer_grid` is a scheduled
+indexer that this store has no cron to run.
+
+One is a fair assertion. The other would be a red test against a store that is
+working correctly, which is the worst kind to put in front of someone deciding
+whether to ship.
+
 ### Secret keys in admin URLs, and the one spec that survives them
 
 `admin/security/use_form_key` is **Add Secret Key to URLs**, not the POST form
@@ -348,17 +505,29 @@ outright. The gap is everything requested in the background, which is most of
 what a Magento page does after it renders.
 
 It was committed strict only after a report-only run of the whole suite.
-Eleven specs produced exactly one recurring finding: `GET
-/guest-carts/<id>/totals` answering 404 about 460ms after
-`payment-information` returned 200. The checkout refreshes the cart totals
-after the order is placed, by which point the quote it is asking about has
-been consumed -- the shopper is on the success page and nothing is broken.
-That is the single entry in the ignore list, scoped to that path and that
-status so it cannot hide a cart that 404s while a shopper is still trying to
-check out.
+Eleven specs produced exactly one recurring finding: a request the checkout
+issues against the quote that placing the order has just consumed. The masked
+id of a guest cart stops resolving the moment the quote becomes an order, so
+anything still in flight comes back 404. Which request it is, is a race.
+Measured by logging every `/rest/` response with its offset from the start of
+the test and repeating the checkout spec six times -- three clean, two on
+totals, one on estimate-shipping-methods:
 
-A third entry was added after the first rehearsal with Varnish owning the
-page cache: Mage-OS enables cross-document view transitions by default
+```
++10164ms  200 POST  .../payment-information
++10645ms  404 GET   .../totals                     (+481ms)
+
+ +7633ms  200 POST  .../payment-information
+ +7709ms  404 POST  .../estimate-shipping-methods    (+76ms)
+```
+
+The shopper is on the success page by then and nothing is broken. Those are
+two entries in the ignore list, each scoped to one path, one method and one
+status -- not to 404s, not to `/rest/` 404s, and not to `/guest-carts/` 404s.
+A cart that 404s while a shopper is still checking out has to stay a finding.
+
+A third kind of entry was added after the first rehearsal with Varnish owning
+the page cache: Mage-OS enables cross-document view transitions by default
 (`MageOS_ThemeOptimization`, `system/view_transitions/enable` = 1), and under
 automation Chrome intermittently aborts one in flight with `Transition was
 aborted because of invalid state. ViewTransition opt-in disabled`. It showed
@@ -539,3 +708,10 @@ least two in the `<configs>` block.
 Registered-customer checkout, a real payment gateway, taxes, discounts and
 multi-address shipping. Each wants fixtures of its own, and none of them is on
 the path between "we tagged a release" and "a shopper can buy something".
+
+Two of those gaps are now smaller from the other side. `customer-account`
+covers the account itself -- registration, the session it opens, sign-out and
+sign-in -- without checking out as that customer, and `admin/create-order`
+places an order against a quote built in the admin, which is the same quote
+model, carrier pool and payment pool through a different front end. What is
+still missing is a shopper who signs in and then buys something.

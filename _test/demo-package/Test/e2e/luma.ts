@@ -16,6 +16,16 @@ export const luma = {
     productItemLink: 'a.product-item-link',
     pageTitle: '.page-title',
     productPrice: '.product-info-main .price',
+    // The sku Luma prints under the product's details. On a configurable this
+    // starts as the parent sku and is rewritten by JS once an option is
+    // chosen, so a spec asserts that it is there and not what it says.
+    productSku: '.product.attribute.sku .value',
+    // Luma's availability block. `.available` is the in-stock variant -- the
+    // out-of-stock one is `.unavailable` -- so the selector matching at all
+    // is the assertion, and a product the price index has not reached renders
+    // neither.
+    productStock: '.stock.available',
+    productQty: '#qty',
     addToCart: '#product-addtocart-button',
     swatchGroup: '.swatch-attribute',
     swatchOption: '.swatch-option:not(.disabled)',
@@ -23,6 +33,15 @@ export const luma = {
     cartSuccess: '.message-success',
     minicartCounter: '.minicart-wrapper .counter-number',
     cartItemName: '.cart.item .product-item-name',
+    cartItem: '.cart.item',
+    cartItemQty: '.cart.item input.qty',
+    cartItemPrice: '.cart.item .col.price .price',
+    cartItemSubtotal: '.cart.item .col.subtotal .price',
+    // The totals block, by row class rather than by position: a store with
+    // tax or a discount renders extra rows between these three.
+    cartSubtotal: '.cart-totals .totals.sub .price',
+    cartShipping: '.cart-totals .totals.shipping .price',
+    cartGrandTotal: '.cart-totals .grand .price',
     proceedToCheckout: 'button[data-role="proceed-to-checkout"]',
     checkoutEmail: '#customer-email',
     shippingForm: '#co-shipping-form',
@@ -44,6 +63,39 @@ export const luma = {
     registerPasswordConfirm: '#password-confirmation',
     registerSubmit: '#form-validate button[type="submit"]',
     errorMessage: '.message-error',
+    successMessage: '.message-success',
+
+    // Sign-in. Every selector here is scoped to .login-container, and that is
+    // not tidiness. Magento renders the authentication popup -- the one
+    // checkout opens -- into every page, and it carries a second copy of this
+    // form with the SAME ids. Measured on the login page of Mage-OS 4.0.0:
+    //
+    //   #pass           name=password          hidden   (the popup)
+    //   #password       name=login[password]   visible  (the form)
+    //   #customer-email name=username          hidden   (the popup)
+    //   #email          name=login[username]   visible  (the form)
+    //   #send2          .action-login.secondary hidden  (the popup)
+    //   #send2          .login.primary         visible  (the form)
+    //
+    // So an unscoped #send2 or #pass resolves to a hidden element and the
+    // spec times out waiting for it to become clickable -- which reads as a
+    // broken page rather than as a selector that matched the wrong copy.
+    // .login-container holds only the real form.
+    loginContainer: '.login-container',
+    loginEmail: '.login-container input[name="login[username]"]',
+    loginPassword: '.login-container input[name="login[password]"]',
+    loginSubmit: '.login-container button#send2',
+
+    // The account dashboard's Contact Information box. Server rendered,
+    // unlike the header greeting, which arrives with private content and is
+    // therefore a worse thing to assert on.
+    accountInformation: '.box-information .box-content',
+    // Luma renders the sign-out link four times -- header panel, account
+    // menu, and the two copies the authentication popup brings -- and hides
+    // every one of them until the header's customer-welcome switch is
+    // clicked.
+    customerWelcomeToggle: '.panel.header .customer-welcome button.action.switch',
+    signOut: 'a[href*="customer/account/logout"]',
 };
 
 /**

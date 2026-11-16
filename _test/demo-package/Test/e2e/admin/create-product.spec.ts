@@ -1,6 +1,7 @@
 import { expect, test } from '../fixtures';
 import { adminGrid, adminSelectors, adminUrl } from './support';
 import { luma, productUrl } from '../luma';
+import { asShopper } from '../storefront';
 
 /**
  * The spec that crosses the most seams in the application, and the reason the
@@ -185,6 +186,11 @@ test.describe('Creating a product in the admin', () => {
             // category listing would additionally depend on the category
             // assignment and the catalog search index, and would report all
             // three as one red.
+            // From here on this is a shopper, not the administrator who
+            // saved the product: the add-to-cart below posts a form key, and
+            // the admin session's is not the one to post. See asShopper().
+            await asShopper(page);
+
             const response = await page.goto(productUrl(product.urlKey));
 
             expect(response?.status(), 'the url rewrite for a saved product should resolve').toBe(200);
