@@ -20,6 +20,7 @@ every change to it and runs this suite against the result.
 | `admin/create-product.spec.ts` | no | admin form -> EAV save -> url rewrite -> indexers -> storefront -> quote |
 | `admin/create-category.spec.ts` | yes | category tree -> save -> url rewrite -> category index -> storefront listing + menu |
 | `admin/create-customer.spec.ts` | no | customer form -> save -> read-back -> the storefront refuses the address twice |
+| `admin/menu-navigation.spec.ts` | no | the admin's own rendered link reaches the product grid, secret key or not |
 
 Storefront selectors live in `luma.ts`, shared by every spec that looks at a
 storefront page. A Hyva variant of this suite is that file with a different
@@ -280,6 +281,45 @@ if a future release does grow a blocking dialog on first sign-in, the right
 outcome is a red test with a screenshot of it, not a suite that dismisses it
 and reports green.
 
+### Secret keys in admin URLs, and the one spec that survives them
+
+`admin/security/use_form_key` is **Add Secret Key to URLs**, not the POST form
+key -- `Magento\Backend\Model\Url` names the same path
+`XML_PATH_USE_SECURE_KEY`. `module-store/etc/config.xml` ships it as `1`, so a
+stock store appends a `/key/<hash>/` segment to every admin GET URL and
+`AbstractAction::_processUrlKeys` answers a request without one with
+`_redirect($this->_backendUrl->getStartupPageUrl())`.
+
+That redirect is the problem. It is a 302 to a **200 on the dashboard**: no
+error, no 4xx, nothing the error watching above can see. The only thing that
+catches it is an assertion about which page you are on.
+
+Measured, by setting it to `1` on a store and running:
+
+| Spec | Navigates by | Result |
+| --- | --- | --- |
+| `admin/menu-navigation.spec.ts` | the href the admin rendered | passed |
+| `admin/product-grid.spec.ts` | a bare admin route | both tests failed |
+
+The grid specs fail at `adminGrid().ready()` -- "waiting for
+`table.data-grid`" -- because they are on the dashboard, which has no grid.
+That is the body-class assertions doing their job, and it is also what every
+admin spec here would do against a store configured the way stores ship.
+
+So `.github/workflows/e2e.yaml` sets the value to `0` itself, in a step that
+explains it, and this is the gap that buys. `admin/menu-navigation.spec.ts`
+exists so the gap is not total: it reads `Catalog > Products` out of the menu
+Magento rendered and follows that, which works with the setting either way. It
+records which way the store was configured as an annotation --
+`admin-url-secret-key: present` or `absent` -- so a report says what it
+proved. It is also the only spec that looks at a URL the **store** generated
+rather than a path the suite wrote, which makes it the only one that can fail
+when admin links are built on the wrong host or scheme.
+
+Making the other admin specs navigate that way would let the setting go
+entirely. The cost is the usual one: a menu is reordered more often than a
+route is renamed.
+
 ## Every page is watched for errors nothing asserts on
 
 `fixtures.ts` replaces Playwright's `page` fixture with one that watches three
@@ -435,9 +475,41 @@ renamed is a gate people switch off.
 ### Two things to know about the profile
 
 `small.xml` sets `admin/security/use_form_key` to `0` and
-`admin_account_sharing` to `1`. Reasonable for load testing, wrong here: a gate
-running against a store with admin CSRF protection disabled is not testing the
-store we ship. Do not copy those over.
+`admin_account_sharing` to `1`. Both are worth understanding rather than
+copying, and the first one is not what its name suggests.
+
+`admin/security/use_form_key` is **Add Secret Key to URLs**:
+`Magento\Backend\Model\Url` names the same path `XML_PATH_USE_SECURE_KEY`. It
+is not the POST form key, which is validated whatever this is set to --
+`Magento\Backend\App\AbstractAction::_processUrlKeys`:
+
+```php
+if ($this->getRequest()->isPost()) {
+    $_isValidFormKey = $this->_formKeyValidator->validate($this->getRequest());
+} elseif ($this->_backendUrl->useSecretKey()) {
+    $_isValidSecretKey = $this->_validateSecretKey();
+}
+```
+
+So neither setting turns off admin CSRF protection. What the secret key does is
+append a `/key/<hash>/` segment to admin GET URLs, and
+`module-store/etc/config.xml` ships it as `1` -- on, in a stock store. With it
+on, a GET to a bare admin route is answered with `_redirect($this->_backendUrl
+->getStartupPageUrl())`: a 302 to a 200 on the dashboard, which no
+failed-request check can see, and which only a body-class or URL assertion
+catches.
+
+Every admin spec here except `admin/menu-navigation.spec.ts` navigates by bare
+route, so `.github/workflows/e2e.yaml` sets this to `0` itself, in a step that
+says why. That is a real gap between the gate and a stock store, and the way to
+close it is to navigate the admin by the links the admin renders -- which is
+what that one spec exists to prove is possible.
+
+`admin_account_sharing` at `1` is what upstream's own integration suite sets,
+in `dev/tests/integration/etc/config-global.php.dist`. With it off, a login
+terminates the account's other sessions
+(`Magento\Security\Model\AdminSessionsManager`), and this suite shares one
+admin account across a saved `storageState`.
 
 `ConfigsApplyFixture` iterates `$configs['config']` as a list, but a single
 `<config>` element collapses to a flat map, so the fixture iterates that

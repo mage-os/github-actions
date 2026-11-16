@@ -193,7 +193,6 @@ jobs:
         run_composer_install: 1
         run_setup_install: 1
         run_admin_user_creation: 1
-        run_magento_config_preset: 1
         varnish_as_page_cache: 1
         run_reindex: 1
         traefik_domain: ${{ env.TRAEFIK_DOMAIN }}
@@ -203,6 +202,59 @@ jobs:
         configure_host_resolution: 1
         run_static_content_deploy: 1
         static_content_themes: ${{ inputs.static_content_themes }}
+
+    # What run_magento_config_preset used to do, written out. Same values the
+    # action applies behind that boolean, minus web/seo/use_rewrites: with a
+    # base URL given, setup:install already passed --use-rewrites=1.
+    #
+    # Spelled out here because one of these moves the store away from what it
+    # ships as, and a gate that does that should say so where the gate is
+    # defined rather than inside a boolean named after a preset. The preset
+    # also carries settings this suite has no use for.
+    #
+    # Applied after the action rather than inside it, so the config cache is
+    # already holding the old values -- hence the flush at the end.
+    - name: Configure the store the suite assumes
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        magento() { ${WARDEN} env exec -T php-fpm bin/magento "$@"; }
+
+        # The browser speaks https to Traefik, so the store has to build https
+        # links on both sides. --lock-env, because this belongs to the
+        # environment and not to anything a test should be able to change.
+        magento config:set --lock-env web/secure/use_in_frontend 1
+        magento config:set --lock-env web/secure/use_in_adminhtml 1
+
+        # "Add Secret Key to URLs" -- Magento\Backend\Model\Url names this
+        # same path XML_PATH_USE_SECURE_KEY. It is not the POST form key:
+        # AbstractAction::_processUrlKeys validates that for every logged-in
+        # POST whatever this is set to, so admin CSRF protection stays on
+        # either way. What the setting adds is a /key/<hash>/ segment on admin
+        # GET URLs, and module-store/etc/config.xml ships it as 1.
+        #
+        # With it on, a GET to a bare admin route is answered with a redirect
+        # to the dashboard: a 302 to a 200, which no failed-request check can
+        # see. Every admin spec here navigates by bare route, so this is off
+        # until they navigate by the links the admin renders instead --
+        # admin/menu-navigation.spec.ts is the first one that does.
+        magento config:set admin/security/use_form_key 0
+
+        # Off, a login terminates the account's other sessions
+        # (Security\Model\AdminSessionsManager), and this suite shares one
+        # admin account across a saved storageState. Upstream's own integration
+        # suite sets it for the same reason, in
+        # dev/tests/integration/etc/config-global.php.dist.
+        magento config:set admin/security/admin_account_sharing 1
+
+        # Inherited from the preset, and a hole: the product and category
+        # description fields ship with TinyMCE, so the gate never loads the
+        # editor the admin actually renders. Enabling it belongs in its own
+        # change with its own run, because it is likely to find something.
+        magento config:set cms/wysiwyg/enabled disabled
+
+        magento cache:flush
 
     # Separate from the test run so that "the store was never reachable" and
     # "the store rendered the wrong thing" are different red steps.

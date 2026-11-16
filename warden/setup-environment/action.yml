@@ -469,7 +469,6 @@ runs:
           export WARDEN="$(dirname $(pwd))/warden/bin/warden"
           ${WARDEN} env exec -T php-fpm bin/magento config:set --lock-env web/secure/use_in_adminhtml 1
           ${WARDEN} env exec -T php-fpm bin/magento config:set --lock-env web/secure/use_in_frontend 1
-          ${WARDEN} env exec -T php-fpm bin/magento config:set --lock-env web/secure/use_in_frontend 1
           ${WARDEN} env exec -T php-fpm bin/magento config:set cms/wysiwyg/enabled disabled
           ${WARDEN} env exec -T php-fpm bin/magento config:set admin/security/admin_account_sharing 1
           ${WARDEN} env exec -T php-fpm bin/magento config:set admin/security/use_form_key 0
