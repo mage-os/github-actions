@@ -368,6 +368,23 @@ upstream report rather than only an ignore entry, because the module's own
 source notes that some in-app browsers never finish the transition and leave
 the page blank.
 
+Not everything it finds becomes an ignore entry. The rehearsal that added
+`admin/menu-navigation.spec.ts` came back with one finding on the admin
+sign-in page: `Refused to apply style from
+'.../adminhtml/MageOS/m137-admin-theme/en_US/css/styles.css' because its MIME
+type ('text/html') is not a supported stylesheet`. The workflow was deploying
+static content for `Magento/backend`, which is the *parent* of the theme
+Mage-OS renders the admin in -- `mage-os/theme-adminhtml-m137` registers
+`MageOS/m137-admin-theme` -- so the admin's own stylesheet was materialised on
+the first request instead, and while Magento built it the browser's request
+for it was answered with Magento's HTML 404 page.
+
+That means the admin had been rendering unstyled on the first page load of
+every run, and nothing in this suite has anything to say about CSS. It showed
+up as a flaky red on the session setup, which is the shape these findings
+usually have: real, cheap to fix, invisible to every assertion. The fix went
+in the workflow's theme list, not in the ignore list here.
+
 The browser's own `Failed to load resource` console line is also ignored, for
 a different reason: it is a URL-less echo of something the response listener
 already reports with a status, a method and a full URL. Keeping both counts

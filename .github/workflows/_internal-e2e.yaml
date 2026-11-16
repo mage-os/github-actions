@@ -98,10 +98,18 @@ jobs:
         configure_host_resolution: 1
         backend_frontname: ${{ env.ADMIN_FRONTNAME }}
         run_static_content_deploy: 1
-        # Magento/backend as well as the storefront theme: the admin specs
-        # would otherwise have to wait for every asset to be generated on
-        # demand, which reads as a timeout rather than as a missing deploy.
-        static_content_themes: "Magento/luma Magento/backend"
+        # The admin themes as well as the storefront one: the admin specs would
+        # otherwise wait for every asset to be generated on demand, which reads
+        # as a timeout, or as an unstyled page, rather than as a missing deploy.
+        #
+        # Both admin themes, because Mage-OS does not render the admin in
+        # Magento/backend. mage-os/theme-adminhtml-m137 registers
+        # MageOS/m137-admin-theme, and deploying only the parent left the child
+        # to be materialised on the first request: run 43932819737 answered the
+        # login page's own stylesheet with Magento's HTML 404 while it built it,
+        # and the browser reported "Refused to apply style ... MIME type
+        # ('text/html')" -- a flaky red on the admin session setup.
+        static_content_themes: "Magento/luma Magento/backend MageOS/m137-admin-theme"
 
     # What run_magento_config_preset used to do, written out. Same values the
     # action applies behind that boolean, minus web/seo/use_rewrites: with a

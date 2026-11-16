@@ -58,8 +58,22 @@ on:
       static_content_themes:
         required: false
         type: string
-        default: "Magento/luma Magento/backend"
-        description: "Space separated themes to deploy static content for. Empty deploys every theme, which is considerably slower. Magento/backend is in the default because an admin spec against an undeployed admin theme reads as a timeout rather than as a missing deploy."
+        default: "Magento/luma Magento/backend MageOS/m137-admin-theme"
+        description: >
+          Space separated themes to deploy static content for. Empty deploys
+          every theme, which is considerably slower.
+
+          The admin themes are in the default because an admin spec against an
+          undeployed admin theme reads as a timeout, or as an unstyled page,
+          rather than as a missing deploy. Both of them, because Mage-OS does
+          not render the admin in Magento/backend: mage-os/theme-adminhtml-m137
+          registers MageOS/m137-admin-theme and that is what the admin asks for.
+
+          Naming a theme the store does not have is harmless. Nothing validates
+          this list up front -- Deploy\Strategy\StandardDeploy::canDeployTheme
+          walks the themes that are registered and checks each against it -- so
+          an unmatched name deploys nothing and fails nothing, which is what
+          lets one default cover Mage-OS and Magento.
       backend_frontname:
         required: false
         type: string
