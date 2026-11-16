@@ -78,6 +78,33 @@ inputs:
     default: "0"
     description: "Whether to run admin user creation or not."
 
+  varnish_as_page_cache:
+    required: false
+    default: "0"
+    description: >
+      Whether to tell Magento that the Varnish service in front of it is its
+      full page cache (system/full_page_cache/caching_application = 2).
+
+      Ignored when no Varnish service is requested.
+
+      This does not install a VCL -- Warden's Varnish image ships a
+      Magento-compatible one. What it changes is which side owns the page
+      cache. Magento defaults to its own built-in cache, and
+      Magento\CacheInvalidate\Observer\InvalidateVarnishObserver only sends
+      a PURGE when the configured type is VARNISH:
+
+          if ((int)$this->config->getType() === Config::VARNISH && ...)
+
+      So with the default, a Varnish that serves every request is a Varnish
+      Magento never invalidates: save a product and the category page keeps
+      the copy it already had. setup:install is already told where to purge
+      (--http-cache-hosts=varnish:80, set below whenever Varnish is present);
+      this is the other half of that.
+
+      Off by default so that existing callers keep the behaviour they have.
+      Browser-based suites want it on: a store whose page cache cannot be
+      invalidated is not the store anyone ships.
+
   base_directory:
     required: true
     default: "./"
@@ -450,6 +477,25 @@ runs:
         else
           echo "Skipping magento config preset"
         fi
+
+    # Deliberately not folded into the preset above: that preset is a single
+    # switch over seven unrelated settings, two of which weaken admin
+    # security, and "serve the page cache the way production does" should not
+    # arrive bundled with those.
+    - name: Own the page cache with Varnish
+      if: inputs.varnish_as_page_cache == '1' && inputs.varnish != 'null' && inputs.varnish != ''
+      working-directory: ${{ inputs.base_directory }}
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        # --lock-env, like the web/secure settings above: this belongs to the
+        # environment, not to something a test or an admin can change out from
+        # under the suite.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set --lock-env system/full_page_cache/caching_application 2
+        # The pages cached before the switch were cached by the other cache.
+        ${WARDEN} env exec -T php-fpm bin/magento cache:flush
+
+        echo "full page cache: $(${WARDEN} env exec -T php-fpm bin/magento config:show system/full_page_cache/caching_application | tr -d '\r')"
 
     - name: Run Magento Setup Upgrade
       working-directory: ${{ inputs.base_directory }}

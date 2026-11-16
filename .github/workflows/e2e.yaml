@@ -194,6 +194,7 @@ jobs:
         run_setup_install: 1
         run_admin_user_creation: 1
         run_magento_config_preset: 1
+        varnish_as_page_cache: 1
         run_reindex: 1
         traefik_domain: ${{ env.TRAEFIK_DOMAIN }}
         traefik_subdomain: ${{ env.TRAEFIK_SUBDOMAIN }}
@@ -238,6 +239,8 @@ jobs:
       id: stack
       working-directory: ./_ghamagento
       shell: bash
+      env:
+        BASE_URL: ${{ steps.warden.outputs.base_url }}
       run: |
         export WARDEN="$(dirname $(pwd))/warden/bin/warden"
         # Stderr is captured too: varnishd -V writes its version there.
@@ -253,6 +256,26 @@ jobs:
         SEARCH="$(probe php-fpm curl -s http://opensearch:9200 | tr -d '\n' | sed -n 's/.*"number"[^"]*"\([^"]*\)".*/\1/p')"
         REDIS="$(probe redis redis-server --version | sed -n 's/.*v=\([0-9][0-9.]*\).*/\1/p' | head -1)"
         VARNISH="$(probe varnish varnishd -V | sed -n 's/.*varnish-\([0-9][0-9.]*\).*/\1/p' | head -1)"
+
+        # Which side owns the page cache, and whether it is actually caching.
+        #
+        # Magento defaults to its own built-in cache, and only purges Varnish
+        # when it is configured as the cache. A Varnish serving every request
+        # that Magento never invalidates passes every spec here today -- each
+        # one visits a given URL once -- and fails the first spec that
+        # revisits a page after changing it, in a way that reads like a
+        # Magento bug. So the run says it outright rather than leaving it to
+        # be re-derived from the source every time.
+        FPC="$(probe php-fpm bin/magento config:show system/full_page_cache/caching_application | head -1)"
+        case "${FPC}" in
+          2) FPC="Varnish" ;;
+          1) FPC="Magento built-in" ;;
+          *) FPC="Magento built-in (unset)" ;;
+        esac
+        HEADERS="$(curl --silent --show-error --insecure --head "${BASE_URL}" 2>&1 | tr -d '\r' || true)"
+        AGE="$(printf '%s' "${HEADERS}" | sed -n 's/^[Aa]ge: *//p' | head -1)"
+        XCACHE="$(printf '%s' "${HEADERS}" | sed -n 's/^[Xx]-[Mm]agento-[Cc]ache-[Dd]ebug: *//p' | head -1)"
+        CACHECONTROL="$(printf '%s' "${HEADERS}" | sed -n 's/^[Cc]ache-[Cc]ontrol: *//p' | head -1)"
 
         # Only the application versions reach the tests. A spec may reasonably
         # branch on those; none should branch on a Redis patch level.
@@ -271,6 +294,10 @@ jobs:
           echo "| Search | ${SEARCH:-unknown} |"
           echo "| Redis | ${REDIS:-unknown} |"
           echo "| Varnish | ${VARNISH:-unknown} |"
+          echo "| Page cache owner | ${FPC} |"
+          echo "| Homepage \`Cache-Control\` | ${CACHECONTROL:-none} |"
+          echo "| Homepage \`Age\` | ${AGE:-none} |"
+          echo "| Homepage \`X-Magento-Cache-Debug\` | ${XCACHE:-none} |"
         } >> $GITHUB_STEP_SUMMARY
 
     # A bare setup:install has nothing to buy. The command reindexes itself.

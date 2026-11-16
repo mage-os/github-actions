@@ -168,6 +168,15 @@ remember their filters per admin user in the `ui_bookmark` table. All of that
 is fine against the throwaway store this workflow installs, and none of it is
 something to point at a store anyone cares about.
 
+The store is installed with **Varnish owning the page cache**
+(`varnish_as_page_cache: 1`). Magento's default is its own built-in cache,
+which would leave a Varnish in front of it that Magento never purges -- and
+a gate that cannot invalidate its page cache is not testing the store anyone
+ships. The run summary records which side owns the cache and what the
+homepage's `Cache-Control`, `Age` and `X-Magento-Cache-Debug` headers say, so
+that is a line in the report rather than something to re-derive from the
+source.
+
 `Magento/backend` is in the `static_content_themes` default for the same
 reason: an admin spec against an undeployed admin theme waits for every asset
 to be generated on demand, and reads as a timeout rather than as a missing
