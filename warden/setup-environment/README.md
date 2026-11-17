@@ -75,6 +75,7 @@ consequences:
 | `database` | `mariadb:10.6` | `distribution:version` of the database. |
 | `search` | `opensearch:2.5` | Search engine; `elasticsearch:*` or `opensearch:*`. |
 | `varnish` | `varnish:7.3` | Varnish version, or `null` to disable. |
+| `varnish_as_page_cache` | `0` | Tell Magento the Varnish in front of it is its page cache. Ignored without a Varnish service -- see below. |
 | `rabbitmq` | `rabbitmq:3.11` | RabbitMQ version, or `null` to disable. |
 | `redis` | `redis:7.0` | Redis version, or `null` to disable. |
 | `base_directory` | `./` | Base directory of the Mage-OS codebase. |
@@ -88,12 +89,67 @@ consequences:
 | `env_name` | `mageos` | `WARDEN_ENV_NAME`. |
 | `traefik_domain` | `mageos.test` | `TRAEFIK_DOMAIN`. |
 | `traefik_subdomain` | `app` | `TRAEFIK_SUBDOMAIN`. |
+| `traefik_version` | `2.11` | `TRAEFIK_VERSION` for Warden's global services. Warden 0.14.2 defaults to `2.2`, which cannot talk to the Docker daemon on a current runner -- see below. |
 | `backend_frontname` | `admin` | Admin frontName passed to `setup:install`. |
 | `base_url` | *(empty)* | Passed as `--base-url` with `--use-rewrites=1`. Empty leaves Magento's default. |
 | `configure_host_resolution` | `0` | Resolve `<subdomain>.<domain>` to `127.0.0.1` on the runner. |
 | `run_static_content_deploy` | `0` | Run `setup:static-content:deploy`. |
 | `static_content_languages` | `en_US` | Space separated locales to deploy. |
 | `static_content_themes` | *(empty)* | Space separated themes, e.g. `Magento/luma`. Empty deploys every theme. |
+
+### Why `varnish_as_page_cache` exists
+
+`setup:install` is already told where to purge whenever a Varnish service is
+requested:
+
+    --http-cache-hosts=varnish:80
+
+but that is only half of it. Magento's page cache defaults to its own
+built-in implementation, and the purge is sent only when the configured type
+is Varnish:
+
+```php
+// Magento\CacheInvalidate\Observer\InvalidateVarnishObserver
+if ((int)$this->config->getType() === Config::VARNISH && $this->config->isEnabled()) {
+    … $this->purgeCache->sendPurgeRequest(array_unique($tags));
+}
+```
+
+So by default a Warden environment serves every request through a Varnish
+that Magento never invalidates. Save a product and the category page keeps
+the copy it already had, for the lifetime of the cached object.
+
+This is quiet rather than loud. A suite whose specs each visit a URL once
+never notices -- there is no stale copy to serve. The first spec that changes
+something and looks at the same page again fails, and reads as a Magento bug
+rather than as an environment that was never told which cache it has.
+
+Setting this to `1` sets `system/full_page_cache/caching_application` to `2`
+and flushes. It installs no VCL: Warden's Varnish image ships a
+Magento-compatible one.
+
+Off by default so existing callers keep the behaviour they have. Browser
+suites should turn it on -- a store whose page cache cannot be invalidated is
+not a store anyone ships, and cache invalidation is a thing Magento releases
+break.
+
+### Why `traefik_version` exists
+
+Warden 0.14.2 pins `traefik:${TRAEFIK_VERSION:-2.2}`, and Traefik 2.2's Docker
+provider speaks Docker API 1.24. The Docker daemon on GitHub's current runner
+image refuses anything below 1.40:
+
+```
+traefik | level=error msg="Failed to retrieve information of the docker client
+and server host: Error response from daemon: client version 1.24 is too old.
+Minimum supported API version is 1.40"
+```
+
+Traefik then reads no container labels, builds no routers, and answers **404 to
+every request**. Nothing else looks wrong: every container is up, `bin/magento`
+works inside them, and a Traefik 404 is indistinguishable from a Magento 404
+from outside. If a store answers 404 on every URL, check this before anything
+in Magento.
 
 ## Outputs
 
