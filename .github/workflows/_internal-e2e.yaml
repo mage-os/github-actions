@@ -39,32 +39,27 @@ jobs:
       TRAEFIK_DOMAIN: mageos.test
       TRAEFIK_SUBDOMAIN: app
       E2E_DIRECTORY: actions/_test/demo-package/Test/e2e
-      # Pinned rather than taken from supported-version: this workflow is here
-      # to tell us whether the action still serves a store, so a service bump
-      # elsewhere should not change what it reports. The release pipeline picks
-      # its own versions.
+      # Pinned rather than taken from supported-version: this workflow reports
+      # whether the action still serves a store, so a service bump elsewhere
+      # should not change what it says. The release pipeline picks its own.
       PHP_VERSION: "8.4"
       COMPOSER_VERSION: "2.10.2"
-      # Declared once and handed to both the install and the suite. Two places
-      # holding separate opinions about the admin URL is a silent 404 that
-      # looks like a broken admin.
+      # Declared once and handed to both the install and the suite: two
+      # opinions about the admin URL is a 404 that looks like a broken admin.
       ADMIN_FRONTNAME: "admin"
-      # What warden/setup-environment's admin:user:create step makes. Not a
-      # secret: it is a throwaway store that exists for the length of the job.
+      # Hardcoded by warden/setup-environment. Not a secret: a throwaway store
+      # that exists for the length of the job.
       ADMIN_USER: "admin"
       ADMIN_PASSWORD: "abcABC123"
     steps:
-    # Not at the workspace root: warden/setup-environment checks the Warden
-    # CLI out into warden/ there, which is where this repository keeps that
-    # action, and the checkout would land on top of it.
+    # Not at the workspace root: warden/setup-environment puts the Warden CLI
+    # in warden/ there, which is where this repository keeps that action.
     - uses: actions/checkout@v6
       with:
         path: actions
 
-    # mode: extension is how the other internal workflows get a project onto
-    # disk -- composer create-project --no-install, into ./_ghamagento. The
-    # dependencies are then installed inside the container, by the PHP version
-    # that will serve them.
+    # mode: extension, like the other internal workflows: create-project
+    # --no-install into ./_ghamagento, then install inside the container.
     - name: Create the Mage-OS project
       uses: ./actions/setup-magento
       with:
@@ -98,30 +93,18 @@ jobs:
         configure_host_resolution: 1
         backend_frontname: ${{ env.ADMIN_FRONTNAME }}
         run_static_content_deploy: 1
-        # The admin themes as well as the storefront one: the admin specs would
-        # otherwise wait for every asset to be generated on demand, which reads
-        # as a timeout, or as an unstyled page, rather than as a missing deploy.
-        #
-        # Both admin themes, because Mage-OS does not render the admin in
-        # Magento/backend. mage-os/theme-adminhtml-m137 registers
-        # MageOS/m137-admin-theme, and deploying only the parent left the child
-        # to be materialised on the first request: run 43932819737 answered the
-        # login page's own stylesheet with Magento's HTML 404 while it built it,
-        # and the browser reported "Refused to apply style ... MIME type
-        # ('text/html')" -- a flaky red on the admin session setup.
+        # The admin themes as well as the storefront one, or the admin specs
+        # wait for each asset to be built on demand. Both, because Mage-OS
+        # renders the admin in MageOS/m137-admin-theme: deploying only the
+        # parent left run 43932819737 serving the login page's own stylesheet
+        # as a 404 while it built it -- "Refused to apply style ... MIME type
+        # ('text/html')", a flaky red on the session setup.
         static_content_themes: "Magento/luma Magento/backend MageOS/m137-admin-theme"
 
-    # What run_magento_config_preset used to do, written out. Same values the
-    # action applies behind that boolean, minus web/seo/use_rewrites: with a
-    # base URL given, setup:install already passed --use-rewrites=1.
-    #
-    # Spelled out here because one of these moves the store away from what it
-    # ships as, and a gate that does that should say so where the gate is
-    # defined rather than inside a boolean named after a preset. The preset
-    # also carries settings this suite has no use for.
-    #
-    # Applied after the action rather than inside it, so the config cache is
-    # already holding the old values -- hence the flush at the end.
+    # What run_magento_config_preset used to do, written out: one of these
+    # moves the store away from what it ships as, which a gate should say
+    # where the gate is defined. web/seo/use_rewrites is dropped --
+    # setup:install already passed --use-rewrites=1 with a base URL given.
     - name: Configure the store the suite assumes
       working-directory: ./_ghamagento
       shell: bash
@@ -130,50 +113,33 @@ jobs:
         magento() { ${WARDEN} env exec -T php-fpm bin/magento "$@"; }
 
         # The browser speaks https to Traefik, so the store has to build https
-        # links on both sides. --lock-env, because this belongs to the
-        # environment and not to anything a test should be able to change.
+        # links on both sides. --lock-env: this belongs to the environment.
         magento config:set --lock-env web/secure/use_in_frontend 1
         magento config:set --lock-env web/secure/use_in_adminhtml 1
 
-        # "Add Secret Key to URLs" -- Magento\Backend\Model\Url names this
-        # same path XML_PATH_USE_SECURE_KEY. It is not the POST form key:
-        # AbstractAction::_processUrlKeys validates that for every logged-in
-        # POST whatever this is set to, so admin CSRF protection stays on
-        # either way. What the setting adds is a /key/<hash>/ segment on admin
-        # GET URLs, and module-store/etc/config.xml ships it as 1.
-        #
-        # With it on, a GET to a bare admin route is answered with a redirect
-        # to the dashboard: a 302 to a 200, which no failed-request check can
-        # see. Every admin spec here navigates by bare route, so this is off
-        # until they navigate by the links the admin renders instead --
-        # admin/menu-navigation.spec.ts is the first one that does.
+        # "Add Secret Key to URLs" (XML_PATH_USE_SECURE_KEY), not the POST
+        # form key -- _processUrlKeys validates that either way, so admin CSRF
+        # protection stays on. With it on, as it ships, a GET to a bare admin
+        # route 302s to the dashboard: a 200 no failed-request check can see.
+        # Every admin spec but menu-navigation navigates by bare route.
         magento config:set admin/security/use_form_key 0
 
         # Off, a login terminates the account's other sessions
-        # (Security\Model\AdminSessionsManager), and this suite shares one
-        # admin account across a saved storageState. Upstream's own integration
-        # suite sets it for the same reason, in
-        # dev/tests/integration/etc/config-global.php.dist.
+        # (AdminSessionsManager), and the suite shares one account across a
+        # saved storageState. Upstream's integration suite sets it too.
         magento config:set admin/security/admin_account_sharing 1
 
-        # Inherited from the preset, and a hole: the product and category
-        # description fields ship with TinyMCE, so the gate never loads the
-        # editor the admin actually renders. Enabling it belongs in its own
-        # change with its own run, because it is likely to find something.
+        # Inherited from the preset, and a hole: the description fields ship
+        # with TinyMCE, so the gate never loads the editor the admin renders.
+        # Enabling it belongs in its own change, with its own run.
         magento config:set cms/wysiwyg/enabled disabled
 
         magento cache:flush
 
-    # Separate from the test run so that "the store was never reachable" and
-    # "the store rendered the wrong thing" are different red steps.
-    #
-    # The status is captured and compared rather than piped into head. This
-    # step used to be `curl --fail ... | head -1`, which reported a 404 and
-    # passed anyway: a GitHub `run:` without `shell: bash` gets `bash -e`
-    # without `-o pipefail`, so the pipeline took head's exit status and
-    # discarded curl's. The whole point of the step is to be the one red that
-    # says "nothing was served", and for one run it was a green that said the
-    # opposite.
+    # Separate from the test run so "never reachable" and "rendered the wrong
+    # thing" are different red steps. The status is captured rather than piped
+    # into head: a `run:` without `shell: bash` has no pipefail, so
+    # `curl --fail | head` once reported a 404 and passed anyway.
     - name: Confirm the store answers on the resolved hostname
       shell: bash
       env:
@@ -187,14 +153,10 @@ jobs:
           exit 1
         fi
 
-    # What the gate ran against, probed from the running stack rather than
-    # echoed back from the inputs: a version input can be a constraint, the
-    # repository can resolve it differently than expected, and a service tag
-    # does not carry its patch level. A failing release gate has to be able to
-    # say "it broke on OpenSearch 3.3.2", not "we asked for 3.3".
-    #
-    # Nothing here can fail the job. A probe that comes back empty reports
-    # "unknown" -- a disabled service is not a broken store.
+    # Probed from the running stack, not echoed back from the inputs: a
+    # version input can be a constraint, and a service tag carries no patch
+    # level. A failing gate has to be able to say "it broke on OpenSearch
+    # 3.3.2". Nothing here fails the job; an empty probe reports "unknown".
     - name: Record the stack under test
       id: stack
       working-directory: ./_ghamagento
@@ -217,15 +179,10 @@ jobs:
         REDIS="$(probe redis redis-server --version | sed -n 's/.*v=\([0-9][0-9.]*\).*/\1/p' | head -1)"
         VARNISH="$(probe varnish varnishd -V | sed -n 's/.*varnish-\([0-9][0-9.]*\).*/\1/p' | head -1)"
 
-        # Which side owns the page cache, and whether it is actually caching.
-        #
-        # Magento defaults to its own built-in cache, and only purges Varnish
-        # when it is configured as the cache. A Varnish serving every request
-        # that Magento never invalidates passes every spec here today -- each
-        # one visits a given URL once -- and fails the first spec that
-        # revisits a page after changing it, in a way that reads like a
-        # Magento bug. So the run says it outright rather than leaving it to
-        # be re-derived from the source every time.
+        # Which side owns the page cache, and whether it is caching. Magento
+        # only purges Varnish when Varnish is configured as the cache, and one
+        # it never invalidates passes every spec that visits a URL once, then
+        # fails the first that revisits a changed page -- looking like a bug.
         FPC="$(probe php-fpm bin/magento config:show system/full_page_cache/caching_application | head -1)"
         case "${FPC}" in
           2) FPC="Varnish" ;;
@@ -237,8 +194,8 @@ jobs:
         XCACHE="$(printf '%s' "${HEADERS}" | sed -n 's/^[Xx]-[Mm]agento-[Cc]ache-[Dd]ebug: *//p' | head -1)"
         CACHECONTROL="$(printf '%s' "${HEADERS}" | sed -n 's/^[Cc]ache-[Cc]ontrol: *//p' | head -1)"
 
-        # Only the application versions reach the tests. A spec may reasonably
-        # branch on those; none should branch on a Redis patch level.
+        # Only the application versions reach the tests. No spec should branch
+        # on a Redis patch level.
         echo "mageos=${MAGEOS:-unknown}" >> $GITHUB_OUTPUT
         echo "magento=${MAGENTO:-unknown}" >> $GITHUB_OUTPUT
 
@@ -260,17 +217,11 @@ jobs:
           echo "| Homepage \`X-Magento-Cache-Debug\` | ${XCACHE:-none} |"
         } >> $GITHUB_STEP_SUMMARY
 
-    # Magento has no switch for two-factor authentication. There is no enable
-    # flag, and leaving twofactorauth/general/force_providers empty does not
-    # help: ControllerActionPredispatch still routes a fresh admin user to
-    # tfa/tfa/index, which redirects to tfa/tfa/requestconfig. Disabling the
-    # module is the only way in. MageOS_PasskeyAuth requires it and registers
-    # an admin 2FA provider, so both have to go in one command or dependency
-    # validation refuses it.
-    #
-    # The cost is stated rather than hidden: this gate does not cover admin
-    # 2FA. Covering it means driving a TOTP provider from its shared secret,
-    # which is worth doing, as its own spec.
+    # Magento has no switch for 2FA: force_providers is empty by default and
+    # ControllerActionPredispatch still routes a fresh admin user to
+    # tfa/tfa/index. Disabling the module is the only way in, and
+    # MageOS_PasskeyAuth requires it, so both go in one command. The cost is
+    # explicit: this gate does not cover admin 2FA.
     - name: Open the admin to the test suite
       working-directory: ./_ghamagento
       shell: bash
@@ -279,9 +230,8 @@ jobs:
 
         MODULES=()
         for MODULE in MageOS_PasskeyAuth Magento_TwoFactorAuth; do
-          # module:status exits 0 even for a module that is not installed, so
-          # its output is the only signal. MageOS_PasskeyAuth is Mage-OS only,
-          # and this workflow should still work against a Magento install.
+          # module:status exits 0 for a module that is not installed, so its
+          # output is the only signal. MageOS_PasskeyAuth is Mage-OS only.
           if ${WARDEN} env exec -T php-fpm bin/magento module:status "${MODULE}" 2>&1 | grep -q 'does not exist'; then
             echo "${MODULE} is not installed"
           else
@@ -289,25 +239,21 @@ jobs:
           fi
         done
 
-        # An array, not a string: module:disable takes the names as separate
-        # arguments and reads a single space-joined string as one unknown
-        # module name. Re-running it changes nothing and still exits 0.
+        # An array, not a string: module:disable reads a space-joined string
+        # as one unknown module name. Re-running it changes nothing, exits 0.
         if [ ${#MODULES[@]} -gt 0 ]; then
           ${WARDEN} env exec -T php-fpm bin/magento module:disable "${MODULES[@]}"
         fi
 
-        # Already the default. Pinned so the suite does not rely on one:
-        # it gates Magento_AdminAnalytics' usage-data modal, which would
-        # otherwise cover the dashboard on first sign-in.
+        # Already the default. Pinned because it gates Magento_AdminAnalytics'
+        # usage-data modal, which would cover the dashboard on first sign-in.
         ${WARDEN} env exec -T php-fpm bin/magento config:set admin/usage/enabled 0
 
-        # The admin login CAPTCHA is on by default (admin/captcha/enable 1) in
-        # after_fail mode, and asks for one after three failed attempts per
-        # login name -- counted in the captcha_log table, which survives
-        # across runs against a long-lived store. A suite that asserts a bad
-        # credential is refused produces exactly those failures, so leaving
-        # this on lets the negative control poison the positive one, and the
-        # symptom is an "Incorrect CAPTCHA" that looks nothing like the cause.
+        # On by default, in after_fail mode, after three failed attempts per
+        # login name -- counted in captcha_log, which survives across runs
+        # against a long-lived store. A suite that asserts a bad credential is
+        # refused makes exactly those failures, and the symptom is an
+        # "Incorrect CAPTCHA" on a password that is correct.
         ${WARDEN} env exec -T php-fpm bin/magento config:set admin/captcha/enable 0
         ${WARDEN} env exec -T php-fpm bin/magento cache:flush
 
@@ -347,14 +293,9 @@ jobs:
         MAGENTO_ADMIN_FRONTNAME: ${{ env.ADMIN_FRONTNAME }}
       run: npx playwright test
 
-    # What the stack was doing when something went wrong. Without this, "the
-    # store answered 404" is where the investigation stops: the containers go
-    # away with the runner, and nothing in the log says whether nginx was up,
-    # whether Varnish had a backend at all, or whether Traefik had a route to
-    # send the request to.
-    #
-    # Nothing in here may fail the job -- it only runs because something else
-    # already did.
+    # What the stack was doing when something went wrong: the containers go
+    # away with the runner, and nothing in the log says whether nginx was up
+    # or whether Traefik had a route. Nothing here may fail the job.
     - name: Report what the stack was doing
       if: failure()
       working-directory: ./_ghamagento

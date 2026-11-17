@@ -177,10 +177,12 @@ homepage's `Cache-Control`, `Age` and `X-Magento-Cache-Debug` headers say, so
 that is a line in the report rather than something to re-derive from the
 source.
 
-`Magento/backend` is in the `static_content_themes` default for the same
+Both admin themes are in the `static_content_themes` default for the same
 reason: an admin spec against an undeployed admin theme waits for every asset
 to be generated on demand, and reads as a timeout rather than as a missing
-deploy.
+deploy. Both, because Mage-OS renders the admin in
+`MageOS/m137-admin-theme` (from `mage-os/theme-adminhtml-m137`), not in its
+parent `Magento/backend`.
 Both versions are **probed from the running store** (`bin/magento --version`),
 not echoed back from `magento_version`. A version input can be a constraint,
 the repository can resolve it differently than expected, and a gate should
