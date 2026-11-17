@@ -1,0 +1,246 @@
+on:
+  workflow_call:
+    inputs:
+      use_local_source:
+        type: boolean
+        required: false
+        default: true
+        description: "Whether or not you want to test your local package or not."
+        
+      source_folder:
+        type: string
+        required: false
+        default: $GITHUB_WORKSPACE
+        description: "The source folder of the package"
+      
+      package_name:
+        type: string
+        required: true
+        description: "The name of the package"
+      
+      magento_directory:
+        type: string
+        required: false
+        default: "../magento2"
+        description: "The folder where Magento will be installed"
+      
+      magento_repository:
+        type: string
+        required: false
+        default: "https://mirror.mage-os.org/"
+        description: "Where to install Magento from"
+
+      matrix:
+        type: string
+        required: true
+        description: "The matrix of Magento versions to test against"
+
+      fail-fast:
+        type: boolean
+        required: false
+        default: true
+      
+      test_command:
+        type: string
+        required: false
+        default: ""
+        description: "Shell commands used to execute the E2E test phases (e.g. Playwright)"
+
+      composer_cache_key:
+        type: string
+        required: false
+        default: ''
+        description: A key to version the composer cache. Can be incremented if you need to bust the cache.
+
+    secrets:
+      composer_auth:
+        required: false
+
+jobs:
+  e2e_test:
+    runs-on:  ${{ matrix.os }}
+    strategy:
+      fail-fast: ${{ inputs.fail-fast }}
+      matrix: ${{ fromJSON(inputs.matrix) }}
+    services:
+      elasticsearch:
+        image: ${{ matrix.elasticsearch || '' }}
+        env:
+          # By default, ElasticSearch refuses to spawn in single node configuration, as it expects redundancy.
+          # This is a dev environment, so redundancy is just wasteful.
+          discovery.type: single-node
+          # Disable HTTPS and password authentication
+          # this is a local dev environment, so the added CA chain complexity is an extreme overkill
+          xpack.security.enabled: false
+          xpack.security.http.ssl.enabled: false
+          xpack.security.transport.ssl.enabled: false
+
+        options: >-
+          --health-cmd "curl http://localhost:9200/_cluster/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 9200:9200
+
+      opensearch:
+        image: ${{ matrix.opensearch || '' }}
+        env:
+          # By default, ElasticSearch refuses to spawn in single node configuration, as it expects redundancy.
+          # This is a dev environment, so redundancy is just wasteful.
+          discovery.type: single-node
+          # Disable HTTPS and password authentication
+          DISABLE_INSTALL_DEMO_CONFIG: true
+          DISABLE_SECURITY_PLUGIN: true
+
+        options: >-
+          --health-cmd "curl http://localhost:9200/_cluster/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 9200:9200
+
+      mysql:
+        image: ${{ matrix.mysql }}
+        env:
+          MYSQL_DATABASE: magento_e2e_tests
+          MYSQL_USER: user
+          MYSQL_PASSWORD: password
+          MYSQL_ROOT_PASSWORD: rootpassword
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      rabbitmq:
+        image: ${{ matrix.rabbitmq }}
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set PHP Version
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php }}
+        tools: composer:v${{ matrix.composer }}
+        coverage: none
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Allow SQL triggers
+      run: |
+        mysql --host 127.0.0.1 --port ${{ job.services.mysql.ports['3306'] }} -u root -prootpassword -e "set global log_bin_trust_function_creators=1;"
+
+    - run: composer create-project --repository-url="${{ inputs.magento_repository }}" "${{ matrix.magento }}" ${{ inputs.magento_directory }} --no-install
+      shell: bash
+      env:
+        COMPOSER_AUTH: ${{ secrets.composer_auth }}
+      name: Create Magento ${{ matrix.magento }} Project 
+
+    - uses: mage-os/github-actions/get-magento-version@main
+      id: magento-version
+      with:
+        working-directory:  ${{ inputs.magento_directory }}
+
+    - name: Get Composer Cache Directory
+      shell: bash
+      working-directory:  ${{ inputs.magento_directory }}
+      id: composer-cache
+      run: |
+        echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+
+    - name: "Cache Composer Packages"
+      uses: actions/cache@v4
+      with:
+        key: "composer | v5 | ${{ inputs.composer_cache_key }} | ${{ hashFiles('composer.lock') }} | ${{ matrix.os }} | ${{ matrix.composer }} | ${{ matrix.php }} | ${{ matrix.magento }}"
+        path: ${{ steps.composer-cache.outputs.dir }}
+
+    - run: composer config repositories.local path ${{ inputs.source_folder }}
+      name: Add Github Repo for Testing
+      working-directory:  ${{ inputs.magento_directory }}
+      shell: bash
+      if: ${{ inputs.use_local_source == true }}
+
+    - run: composer require monolog/monolog:"<2.7.0" --no-update
+      name: Fixup Monolog (https://github.com/magento/magento2/pull/35596)
+      working-directory:  ${{ inputs.magento_directory }}
+      if: |
+        steps.magento-version.outputs.version == '"2.4.4"'
+
+    - run: composer require "dotmailer/dotmailer-magento2-extension-package:4.6.0-p2 as 4.6.0" --no-update
+      name: Fixup Dotmailer (https://devdocs.magento.com/guides/v2.4/release-notes/release-notes-2-4-0-commerce.html#dotdigital-1)
+      working-directory:  ${{ inputs.magento_directory }}
+      if: |
+        steps.magento-version.outputs.version == '"2.4.0"'
+
+    - run: | 
+        composer config --no-interaction allow-plugins.dealerdirect/phpcodesniffer-composer-installer true
+        composer config --no-interaction allow-plugins.laminas/laminas-dependency-plugin true
+        composer config --no-interaction allow-plugins.magento/* true
+      name: Fixup Composer Plugins
+      working-directory:  ${{ inputs.magento_directory }}
+      if: ${{ !startsWith(matrix.composer, '1') }}
+
+    - run: | 
+        composer global require hirak/prestissimo
+      name: Install composer plugin for parallel downloads
+      working-directory:  ${{ inputs.magento_directory }}
+      if: ${{ startsWith(matrix.composer, '1') }}
+
+    - run: composer require ${{ inputs.package_name }} "@dev" --no-update && composer install
+      name: Require and attempt install
+      working-directory:  ${{ inputs.magento_directory }}
+      shell: bash
+      env:
+        COMPOSER_CACHE_DIR: ${{ steps.composer-cache.outputs.dir }}
+        COMPOSER_AUTH: ${{ secrets.composer_auth }}
+
+    - name: Replace Configuration Settings for env
+      working-directory:  ${{ inputs.magento_directory }}/dev/tests/e2e
+      run: |
+        sed -i "s/'db-host' => 'localhost'/'db-host' => '127.0.0.1'/" etc/install-config-mysql.php.dist
+        sed -i "s/'db-user' => 'root'/'db-user' => 'user'/" etc/install-config-mysql.php.dist
+        sed -i "s/'db-password' => '123123q'/'db-password' => 'password'/" etc/install-config-mysql.php.dist
+        sed -i "s/'elasticsearch-host' => 'localhost'/'elasticsearch-host' => '127.0.0.1'/" etc/install-config-mysql.php.dist
+        sed -i "s/'amqp-host' => 'localhost'/'amqp-host' => '127.0.0.1'/" etc/install-config-mysql.php.dist
+
+    # mysql server 5.7 doesn't have the column-statistics expected by mysql client 8 (failing 2.3.7-p* builds)
+    # ref: https://gist.github.com/tobias-khs/8dcf82f719a2b3a7c3b9604b4df53bbf
+    - name: Switch from mysql-client 8 to mysql-client 5.7
+      if: |
+        steps.magento-version.outputs.version == '"2.3.7-p3"' || steps.magento-version.outputs.version == '"2.3.7-p4"'
+      run: |
+        mkdir -p /tmp/mysql-5.7
+        cd /tmp/mysql-5.7
+        sudo apt-get purge mysql-server mysql-client mysql-common mysql-server-core-* mysql-client-core-*
+        sudo rm -rf /etc/mysql /var/lib/mysql
+        sudo apt-get autoremove
+        sudo apt-get autoclean
+        wget --quiet https://downloads.mysql.com/archives/get/p/23/file/mysql-server_5.7.30-1ubuntu18.04_amd64.deb-bundle.tar
+        tar -xf mysql-server_5.7.30-1ubuntu18.04_amd64.deb-bundle.tar
+        sudo dpkg -i mysql-common_5.7.30-1ubuntu18.04_amd64.deb
+        sudo dpkg -i libmysqlclient20_5.7.30-1ubuntu18.04_amd64.deb
+        sudo dpkg -i mysql-community-client_5.7.30-1ubuntu18.04_amd64.deb
+        sudo dpkg -i mysql-client_5.7.30-1ubuntu18.04_amd64.deb
+        sudo dpkg -i libmysqlclient20_5.7.30-1ubuntu18.04_amd64.deb
+        mysqldump --version
+
+    - run: ${{ inputs.test_command }}
+      working-directory:  ${{ inputs.magento_directory }}/dev/tests/e2e
+      name: Run Playwright E2E phases
+
+    - name: Upload test sandbox dir
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: sandbox-data-${{ steps.magento-version.outputs.version }}
+        path: /home/runner/work/infrastructure/magento2/dev/tests/e2e/tmp/sandbox-*
+        retention-days: 3
+
