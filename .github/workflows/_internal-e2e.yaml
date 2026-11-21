@@ -318,14 +318,22 @@ jobs:
           echo "Magento wrote no exception reports."
         fi
 
-        for LOG in exception system; do
-          LINES="$(in_php "tail -n 50 var/log/${LOG}.log 2>/dev/null")"
-          if [ -n "${LINES}" ]; then
-            echo "::group::var/log/${LOG}.log (last 50 lines)"
-            printf '%s\n' "${LINES}"
-            echo "::endgroup::"
-          fi
-        done
+        EXCEPTIONS="$(in_php 'tail -n 50 var/log/exception.log 2>/dev/null')"
+        if [ -n "${EXCEPTIONS}" ]; then
+          echo "::group::var/log/exception.log (last 50 lines)"
+          printf '%s\n' "${EXCEPTIONS}"
+          echo "::endgroup::"
+        fi
+
+        # Severity-filtered: system.log is mostly INFO "Broken reference"
+        # lines on any Magento install, and printing those every run would
+        # bury the one entry worth reading.
+        ERRORS="$(in_php 'grep -hE "\.(ERROR|CRITICAL|ALERT|EMERGENCY):" var/log/system.log 2>/dev/null | tail -n 50')"
+        if [ -n "${ERRORS}" ]; then
+          echo "::group::var/log/system.log (errors only)"
+          printf '%s\n' "${ERRORS}"
+          echo "::endgroup::"
+        fi
 
     # What the stack was doing when something went wrong: the containers go
     # away with the runner, and nothing in the log says whether nginx was up
