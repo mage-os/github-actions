@@ -207,6 +207,13 @@ The step also writes the full stack -- PHP, database, search, Redis and Varnish
 patch levels, probed from the containers -- to the job summary, so a red gate
 says what it ran against without anyone reading the log.
 
+A test that fails and then passes on its retry leaves the job green, so a
+`failure()` step would never run and whatever Magento threw would go away with
+the containers. The run therefore always prints `var/report` and the tails of
+`var/log/exception.log` and `system.log`, and says when there is nothing to
+report. One rehearsal recorded a `500` from the admin notification area with
+no exception to go with it; that is the gap this closes.
+
 ## Fixtures
 
 `fixture_profile` is a [performance

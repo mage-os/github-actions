@@ -398,6 +398,40 @@ jobs:
         MAGENTO_ADMIN_FRONTNAME: ${{ inputs.backend_frontname }}
       run: bash -c "$TEST_COMMAND"
 
+    # A test that fails and then passes on its retry leaves the job green, so
+    # the failure() step below never runs and whatever Magento threw is lost
+    # with the containers. That is how one rehearsal recorded a 500 from the
+    # admin notification area with no exception to go with it. This runs
+    # either way, and says so when there is nothing to report.
+    - name: Report what Magento logged
+      if: ${{ !cancelled() }}
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        in_php() { ${WARDEN} env exec -T php-fpm bash -c "$1" 2>/dev/null || true; }
+
+        REPORTS="$(in_php 'ls -1 var/report 2>/dev/null | head -20')"
+        if [ -n "${REPORTS}" ]; then
+          for REPORT in ${REPORTS}; do
+            echo "::group::var/report/${REPORT}"
+            in_php "head -c 4000 var/report/${REPORT}"
+            echo
+            echo "::endgroup::"
+          done
+        else
+          echo "Magento wrote no exception reports."
+        fi
+
+        for LOG in exception system; do
+          LINES="$(in_php "tail -n 50 var/log/${LOG}.log 2>/dev/null")"
+          if [ -n "${LINES}" ]; then
+            echo "::group::var/log/${LOG}.log (last 50 lines)"
+            printf '%s\n' "${LINES}"
+            echo "::endgroup::"
+          fi
+        done
+
     # What the stack was doing when something went wrong: the containers go
     # away with the runner, and nothing in the log says whether nginx was up
     # or whether Traefik had a route. Nothing here may fail the job.
