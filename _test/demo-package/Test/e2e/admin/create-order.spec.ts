@@ -48,7 +48,6 @@ const orderForm = {
     searchGrid: '#sales_order_create_search_grid',
     searchGridTable: '#sales_order_create_search_grid_table > tbody tr',
     skuFilter: '#sales_order_create_search_grid_filter_sku',
-    applyFilter: '#sales_order_create_search_grid [data-action="grid-filter-apply"]',
     addSelected: '#order-search .admin__page-section-title .actions button.action-add',
     itemsGrid: '#order-items_grid',
     billing: {
@@ -191,8 +190,16 @@ test.describe('Creating an order in the admin', () => {
 
             // The sku filter is a LIKE, so this narrows the grid rather than
             // selecting a row: product_dynamic matches every fixture simple.
+            //
+            // Applied with Enter rather than by clicking Search, because the
+            // grid re-renders itself while the filter is being typed and the
+            // button goes with it: observed in CI as `locator.click` timing
+            // out for 20s on a Search button that resolved but was never
+            // visible. varienGrid binds keypress on every filter input and
+            // calls doFilter() on Enter, which is both what a person does and
+            // the one path that does not need the button to survive.
             await page.fill(orderForm.skuFilter, 'product_dynamic');
-            await page.locator(orderForm.applyFilter).click();
+            await page.locator(orderForm.skuFilter).press('Enter');
             await form.settled();
 
             const rows = page.locator(orderForm.searchGridTable);

@@ -536,6 +536,22 @@ Three more traps on that page, each of which cost a red run to find:
   nothing has been chosen -- so it works on a store with one method and on a
   store with six.
 
+- **The product grid's Search button does not survive the typing.** The sku
+  filter is applied with Enter, not by clicking Search. The grid re-renders
+  while the filter is being filled in and the button goes with it, which CI
+  showed as `locator.click` timing out for 20 seconds on a button that
+  resolved every time and was visible none of them. `varienGrid` binds
+  keypress on each filter input and calls `doFilter()` on Enter -- a path that
+  needs nothing to still be on the page by the time the click lands, and the
+  one a person uses anyway.
+
+- **A burst of its own XHRs used to exhaust the session handler.** The page
+  starts one admin session per ui-component request and Redis session locking
+  allows six waiters, so the seventh was refused, that request returned 500,
+  and Magento's "Attention" modal landed on top of whatever was being clicked.
+  The workflow now installs with `max_concurrency=20`; the full account is in
+  `.github/workflows/e2e-README.md`.
+
 ### The storefront half of an admin spec is a different visitor
 
 Three admin specs cross into the storefront to prove the save reached a
