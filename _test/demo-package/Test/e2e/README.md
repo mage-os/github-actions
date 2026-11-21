@@ -44,7 +44,8 @@ looks at a storefront page. A Hyva variant of this suite is that file with a
 different map, not a rewrite of the specs. `storefront/support.ts` holds the
 behaviour that goes with them -- choosing whatever options a product requires,
 reading the number out of a rendered price, registering an account, filling an
-address form -- because that part is not theme-specific. Three admin specs import from both, which is the point: an
+address form, waiting for a form key to become valid -- because that part is
+not theme-specific. Three admin specs import from both, which is the point: an
 admin spec that proves a save reached a shopper is looking at a storefront
 page, and should read it the way the storefront specs do.
 
@@ -189,6 +190,24 @@ spec carries the increment id the success page gave it to both of those pages,
 so what it proves is that one order moved through, not that three pages each
 rendered something plausible.
 
+What identifies the *line* across those pages is the product name, not the
+sku, and that is a measured decision. Every spec here buys whatever the
+catalogue lists first, and that is not the same product everywhere -- CI gets
+the fixture configurable, a store an admin spec has run against gets a simple
+product. A configurable's order line carries the child sku while its product
+page shows the parent's, and Luma does not rewrite the displayed sku when an
+option is chosen:
+
+| | product page | order line |
+| --- | --- | --- |
+| simple | `product_dynamic_11` | `product_dynamic_11` |
+| configurable | `Configurable Product 1` | `Configurable Product 1 - option 1` |
+
+The parent name is on both pages in both cases, so that is the identity. The
+sku is then asserted through the rule that explains the difference rather than
+around it: a line with chosen options carries a variant's own sku, a line
+without them carries the product's.
+
 One selector trap on the way: the My Orders grid and the order's own items
 table are both `#my-orders-table`. `sales_order_history.phtml` and
 `order_items.phtml` give them the same id, on different pages. The grid is
@@ -201,6 +220,35 @@ address gets the empty form instead, which is the guest spec's path again.
 The spec also asserts the new-address form arrives carrying the customer's
 name before it types anything into it: a form reading the wrong entity saves
 the address either way, so nothing else would notice.
+
+### A storefront form submit has to wait for its form key
+
+Magento mints the form key in the browser, because a page served from the full
+page cache would otherwise hand every visitor whatever key was rendered into
+it. `Magento_PageCache/js/form-key-provider.js` writes a fresh one to the
+`form_key` cookie and rewrites each form's hidden input to match. Sampling
+both values from document commit:
+
+```
++   0ms  cookie=(none)            input=sKSvRQDyz5fExuSH   no match
++ 250ms  cookie=gVEGZbqOGvCViuHP  input=gVEGZbqOGvCViuHP   match
+```
+
+A quarter of a second. A person never submits a form inside that window;
+Playwright does, and Magento answers the POST with `Invalid Form Key. Please
+refresh the page.` The store is behaving as designed -- but the spec that
+hits it is asserting on a *message*, so the failure arrives as the wrong
+message rather than as anything that looks like a timing problem.
+
+So every storefront form submit here is preceded by `awaitFormKey(page)`,
+which polls until the cookie exists and the hidden input matches it.
+Registration is where this suite actually loses the race -- five fields filled
+back to back is its fastest submission, and it has been seen three times --
+but the wait costs nothing and the next fast spec should not have to
+rediscover the reason.
+
+Not to be confused with the admin-session form key further down. That one is
+not a race: the key is valid and belongs to the wrong session.
 
 ### Why a second cart spec
 
@@ -510,7 +558,9 @@ under a page that has already rendered it. CI has never seen it, because a
 gate's store is used once and by one run.
 
 Rather than chase that race: a shopper is not an administrator. Clearing the
-cookies costs one request's worth of session and removes the class.
+cookies costs one request's worth of session and removes the class. The
+`awaitFormKey` wait above does not help here -- there the page has not caught
+up with the cookie yet, and here the cookie itself belongs to somebody else.
 
 ### One grid a save does update
 

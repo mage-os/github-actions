@@ -17,8 +17,11 @@ export const luma = {
     pageTitle: '.page-title',
     productPrice: '.product-info-main .price',
     // The sku Luma prints under the product's details. On a configurable this
-    // starts as the parent sku and is rewritten by JS once an option is
-    // chosen, so a spec asserts that it is there and not what it says.
+    // is the parent's sku and it stays that way -- measured on Mage-OS 4.0.0,
+    // the displayed value does not change when an option is chosen, while the
+    // order line that follows carries the *child* sku. So a spec asserts that
+    // a sku is rendered, and uses the product name when it needs to recognise
+    // the same product on another page.
     productSku: '.product.attribute.sku .value',
 
     // Quick search, as Luma renders it in the header. Typing into it fires no
@@ -151,6 +154,9 @@ export const luma = {
     // td, not th: the items table repeats every column label in its header.
     orderItemSku: '.table-order-items td.col.sku',
     orderItemName: '.table-order-items .product-item-name',
+    // The chosen options a line carries, rendered under its name. Their
+    // presence is what says the sku below belongs to a variant.
+    orderItemOptions: '.table-order-items .item-options',
 };
 
 /**

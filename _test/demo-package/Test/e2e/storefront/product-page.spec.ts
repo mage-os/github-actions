@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures';
 import { luma } from './luma';
-import { parseMoney, selectRequiredOptions } from './support';
+import { awaitFormKey, parseMoney, selectRequiredOptions } from './support';
 
 /**
  * A product page and the cart it fills, asserted properly.
@@ -84,6 +84,7 @@ test.describe('Product page', () => {
             await qty.fill(String(quantity));
             await expect(qty).toHaveValue(String(quantity));
 
+            await awaitFormKey(page);
             await page.locator(luma.addToCart).click();
 
             // Magento names the product in the message, which is the cheapest

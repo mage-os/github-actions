@@ -1,7 +1,7 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from '../fixtures';
 import { luma } from './luma';
-import { fillAddressFields, selectRequiredOptions } from './support';
+import { awaitFormKey, fillAddressFields, selectRequiredOptions } from './support';
 
 // The deepest path a storefront check can walk: catalog -> product -> cart ->
 // shipping -> payment -> order. It touches the layered navigation, the price
@@ -58,6 +58,7 @@ test.describe('Guest checkout', () => {
 
         await test.step('adding to the cart updates the minicart', async () => {
             await selectRequiredOptions(page);
+            await awaitFormKey(page);
             await page.locator(luma.addToCart).click();
 
             // customer-data arrives over a separate /customer/section/load

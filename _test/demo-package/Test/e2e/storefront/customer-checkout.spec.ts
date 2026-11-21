@@ -1,6 +1,7 @@
 import { expect, test } from '../fixtures';
 import { luma } from './luma';
 import {
+    awaitFormKey,
     fillAddressFields,
     newShopper,
     registerCustomer,
@@ -36,6 +37,12 @@ import {
  * It asserts the increment id the success page gave it on all three pages, so
  * what is being checked is that one order moved through, not that each page
  * renders something plausible.
+ *
+ * Like every spec here it buys whatever the catalogue lists first, which is
+ * not the same product everywhere -- CI's first product is the fixture
+ * configurable and a store that has had an admin spec run against it lists a
+ * simple one. So the assertions below are product-type independent on
+ * purpose, and the final step says what that costs.
  */
 
 test.describe('Signed-in checkout', () => {
@@ -78,6 +85,7 @@ test.describe('Signed-in checkout', () => {
                 await expect(form.locator(luma.registerLastName)).toHaveValue(customer.lastName);
 
                 await fillAddressFields(form);
+                await awaitFormKey(page);
                 await page.locator(luma.addressSubmit).click();
 
                 await expect(page.locator('body')).toHaveClass(/customer-address-index/);
@@ -109,6 +117,7 @@ test.describe('Signed-in checkout', () => {
                 expect(sku, 'a product page should render a sku').not.toBe('');
 
                 await selectRequiredOptions(page);
+                await awaitFormKey(page);
                 await page.locator(luma.addToCart).click();
 
                 await expect(page.locator(luma.cartSuccess)).toContainText('to your shopping cart');
@@ -206,14 +215,37 @@ test.describe('Signed-in checkout', () => {
                 await expect(page.locator(luma.pageTitle)).toContainText(orderNumber);
                 await expect(page.locator(luma.orderStatus)).toHaveText('Pending');
 
-                // The sku read off the product page before it was added to
-                // the cart: the catalogue, the quote and the order all
-                // agreeing on which product this was.
+                // The product name, not the sku, is what identifies this line
+                // as the thing that was bought. A configurable's order line
+                // carries the *child* sku while its product page shows the
+                // parent's, and the page never rewrites what it shows when an
+                // option is chosen -- measured: a page reading "Configurable
+                // Product 1" becomes an order line reading "Configurable
+                // Product 1 - option 1". The parent name is on both pages.
                 await expect(
-                    page.locator(luma.orderItemSku),
-                    'the order should carry the sku that was added to the cart',
-                ).toHaveText(sku);
-                await expect(page.locator(luma.orderItemName)).toContainText(productName);
+                    page.locator(luma.orderItemName),
+                    'the order should name the product that was added to the cart',
+                ).toContainText(productName);
+
+                // Which leaves the sku assertable through the rule that
+                // explains that difference rather than around it: a line with
+                // chosen options carries a variant's own sku, a line without
+                // them carries the product's. Both are worth failing on, and
+                // which kind of product the catalogue happens to list first
+                // is not this spec's business -- CI and a local store already
+                // disagree about it.
+                const orderedSku = page.locator(luma.orderItemSku);
+                if ((await page.locator(luma.orderItemOptions).count()) === 0) {
+                    await expect(
+                        orderedSku,
+                        'a line with no options should carry the sku the product page showed',
+                    ).toHaveText(sku);
+                } else {
+                    await expect(
+                        orderedSku,
+                        'a configured line should carry a variant sku of its own',
+                    ).not.toBeEmpty();
+                }
             });
         },
     );

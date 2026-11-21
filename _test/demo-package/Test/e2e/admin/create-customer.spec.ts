@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures';
 import { adminGrid, adminSelectors, adminUrl } from './support';
-import { asShopper } from '../storefront/support';
+import { asShopper, awaitFormKey } from '../storefront/support';
 import { luma } from '../storefront/luma';
 
 /**
@@ -134,6 +134,11 @@ test.describe('Creating a customer in the admin', () => {
             await page.locator(luma.registerEmail).fill(customer.email);
             await page.locator(luma.registerPassword).fill('mageos-E2E-1!');
             await page.locator(luma.registerPasswordConfirm).fill('mageos-E2E-1!');
+
+            // Clearing the cookies above means form-key-provider.js has to
+            // mint a key again, so this submit is in the race awaitFormKey
+            // describes -- and this is the spec that first hit it.
+            await awaitFormKey(page);
             await page.locator(luma.registerSubmit).click();
 
             await expect(page.locator(luma.errorMessage)).toContainText(

@@ -11,14 +11,27 @@ import { luma } from './luma';
  * a value, and which product the catalog lists first is not ours to decide.
  * So pick the first available value for whatever the page asks for, and let a
  * spec work on a simple product, a configurable, or a merchant's own catalog.
+ *
+ * Every wait here is load-order, not politeness. Neither control arrives with
+ * its values: the server sends an empty `<select>` and an empty swatch group,
+ * and Magento_ConfigurableProduct's widget fills them in from spConfig once
+ * requirejs has it. Reading them straight after the navigation therefore
+ * finds nothing to choose, which this function used to shrug off -- and the
+ * product then fails validation on add-to-cart, with no success message and
+ * no mention of options anywhere. Measured on this store: the dropdown is
+ * empty on arrival and holds three values a moment later.
+ *
+ * So an option control that never becomes selectable now fails here, with a
+ * timeout naming the locator, rather than three assertions later as a cart
+ * that stayed empty. A product nobody can configure is a product nobody can
+ * buy, which is a finding either way.
  */
 export async function selectRequiredOptions(page: Page): Promise<void> {
     const swatchGroups = page.locator(luma.swatchGroup);
     for (let i = 0; i < (await swatchGroups.count()); i++) {
         const option = swatchGroups.nth(i).locator(luma.swatchOption).first();
-        if (await option.count()) {
-            await option.click();
-        }
+        await option.waitFor({ state: 'visible' });
+        await option.click();
     }
 
     // Configurables render dropdowns instead of swatches when the attribute
@@ -26,13 +39,13 @@ export async function selectRequiredOptions(page: Page): Promise<void> {
     const selects = page.locator(luma.optionSelect);
     for (let i = 0; i < (await selects.count()); i++) {
         const select = selects.nth(i);
-        const values = await select
-            .locator('option')
-            .evaluateAll((options) =>
-                options.map((option) => (option as HTMLOptionElement).value).filter(Boolean),
-            );
-        if (values.length) {
-            await select.selectOption(values[0]);
+        // The placeholder option ships with the page and carries no value, so
+        // this waits for a real one rather than for any option at all.
+        const firstValue = select.locator('option[value]:not([value=""])').first();
+        await firstValue.waitFor({ state: 'attached' });
+        const value = await firstValue.getAttribute('value');
+        if (value) {
+            await select.selectOption(value);
         }
     }
 }
@@ -53,6 +66,56 @@ export async function selectRequiredOptions(page: Page): Promise<void> {
  */
 export function parseMoney(text: string): number {
     return Number.parseFloat(text.replace(/[^\d.,-]/g, '').replace(/,/g, ''));
+}
+
+/**
+ * Waits until the page's form key is one the server will accept.
+ *
+ * Magento_PageCache ships `form-key-provider.js` because a storefront page can
+ * be served from the full page cache, where a server-rendered form key would
+ * be some earlier visitor's. So the script mints a key, writes it to the
+ * `form_key` cookie and rewrites every form's hidden input to match. Until it
+ * runs, the page carries a key that does not match any cookie.
+ *
+ * Measured on this store, sampling both values from document commit:
+ *
+ *     +   0ms  cookie=(none)           input=sKSvRQDyz5fExuSH   no match
+ *     + 250ms  cookie=gVEGZbqOGvCViuHP input=gVEGZbqOGvCViuHP   match
+ *
+ * A quarter of a second, which a browser driven by a person never loses and
+ * one driven by Playwright sometimes does: a form filled in faster than that
+ * POSTs the stale key and Magento answers `Invalid Form Key. Please refresh
+ * the page.` It is a flake rather than a bug -- the store is behaving as
+ * designed and the shopper is never that fast -- and it reads as a broken
+ * registration, which is worse than it sounds: the spec that hits it is
+ * asserting on a *message*, so the failure arrives as the wrong message
+ * rather than as a timing problem.
+ *
+ * Observed on registration three times across this suite's history, which is
+ * where the race is lost: five fields filled back to back is the fastest form
+ * submission here. Called before every storefront form submit anyway, because
+ * the next spec to be fast enough should not have to rediscover this.
+ *
+ * See asShopper below for the other way this key goes wrong, which is not a
+ * race at all.
+ */
+export async function awaitFormKey(page: Page): Promise<void> {
+    await expect
+        .poll(
+            async () => {
+                const cookie = (await page.context().cookies()).find(
+                    (candidate) => candidate.name === 'form_key',
+                )?.value;
+                if (!cookie) return false;
+
+                const input = page.locator('input[name="form_key"]').first();
+                if ((await input.count()) === 0) return false;
+
+                return (await input.inputValue()) === cookie;
+            },
+            { message: 'the page should carry a form key matching its cookie' },
+        )
+        .toBe(true);
 }
 
 /**
@@ -183,5 +246,6 @@ export async function registerCustomer(
     // whose text is about something else.
     await expect(page.locator(luma.registerEmail)).toHaveValue(customer.email);
 
+    await awaitFormKey(page);
     await page.locator(luma.registerSubmit).click();
 }
