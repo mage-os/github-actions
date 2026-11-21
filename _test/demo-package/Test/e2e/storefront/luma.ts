@@ -65,6 +65,22 @@ export const luma = {
     placeOrder: '#checkout-payment-method-load button.action.checkout.primary',
     successPageTitle: '.page-title',
     successBlock: '.checkout-success',
+    // The increment id on the success page, as a link. success.phtml wraps it
+    // in a.order-number only when the viewer can open the order, so this
+    // matches for a signed-in shopper and not for a guest -- which is why the
+    // guest spec matches the digits in the block instead.
+    successOrderNumber: '.checkout-success a.order-number',
+
+    // Checkout with an address already on the account. Measured on this store
+    // with one saved address: the address is preselected in
+    // .shipping-address-item.selected-item, and #co-shipping-form is still in
+    // the DOM but hidden -- it is the New Address popup's form. So a spec
+    // asserts that form is not *visible*; neither its absence nor its
+    // presence says anything.
+    checkoutSelectedAddress: '.shipping-address-item.selected-item',
+    // The Ship To / shipping-method recap the payment step renders, in that
+    // order: two blocks with the same class.
+    checkoutShipTo: '.opc-block-shipping-information .shipping-information-content',
 
     // Account registration. Luma's own form, so it belongs in Luma's map:
     // firstname and lastname come from a shared name fieldset template, which
@@ -76,6 +92,17 @@ export const luma = {
     registerPassword: '#password',
     registerPasswordConfirm: '#password-confirmation',
     registerSubmit: '#form-validate button[type="submit"]',
+
+    // The address book's own form, which is #form-validate too -- the same id
+    // the registration form uses, on a different page. Named separately so a
+    // spec reads as what it is doing rather than as which template Magento
+    // happened to reuse.
+    addressForm: '#form-validate',
+    addressSubmit: '#form-validate button[type="submit"]',
+    // The Default Billing Address box on the Address Book page. The first
+    // address a customer saves becomes the default for both billing and
+    // shipping, so this is where a just-saved first address shows up.
+    defaultBillingAddress: '.box-address-billing .box-content',
     errorMessage: '.message-error',
     successMessage: '.message-success',
 
@@ -110,6 +137,20 @@ export const luma = {
     // clicked.
     customerWelcomeToggle: '.panel.header .customer-welcome button.action.switch',
     signOut: 'a[href*="customer/account/logout"]',
+
+    // My Orders, and the order page it links to. The grid and the order's own
+    // items table are both #my-orders-table -- sales_order_history.phtml and
+    // order_items.phtml give them the same id -- so the grid is addressed
+    // through its cells and the order through .table-order-items.
+    orderHistoryRow: '#my-orders-table tbody tr',
+    orderHistoryId: 'td.col.id',
+    orderHistoryStatus: 'td.col.status',
+    orderHistoryView: 'a.action.view',
+    orderStatus: '.order-status',
+    orderItems: '.table-order-items',
+    // td, not th: the items table repeats every column label in its header.
+    orderItemSku: '.table-order-items td.col.sku',
+    orderItemName: '.table-order-items .product-item-name',
 };
 
 /**

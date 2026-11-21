@@ -71,15 +71,16 @@ const ignoredConsole: RegExp[] = [/^Failed to load resource/];
 const ignoredPageErrors: RegExp[] = [/^Transition was aborted because of invalid state\./];
 
 /**
- * HTTP responses that are not findings. Two entries, and they are the same
- * phenomenon: a request Magento's checkout issues against the quote that
- * placing the order has just consumed.
+ * HTTP responses that are not findings. Every entry is the same phenomenon: a
+ * request Magento's checkout issues against the quote that placing the order
+ * has just consumed.
  *
  * The masked id of a guest cart stops resolving the moment the quote becomes
- * an order, so anything still in flight -- or fired by a component reacting to
- * the last change -- comes back 404. Measured on Mage-OS 4.0.0, by logging
- * every /rest/ response with its offset from the start of the test and
- * repeating the checkout spec:
+ * an order, and a signed-in shopper's carts/mine stops resolving for the same
+ * reason -- there is no active quote left to be anyone's. So anything still in
+ * flight -- or fired by a component reacting to the last change -- comes back
+ * 404. Measured on Mage-OS 4.0.0, by logging every /rest/ response with its
+ * offset from the start of the test and repeating the checkout specs:
  *
  *     +10164ms  200 POST  .../payment-information
  *     +10645ms  404 GET   .../totals                      (+481ms)
@@ -92,7 +93,7 @@ const ignoredPageErrors: RegExp[] = [/^Transition was aborted because of invalid
  * success page by then and nothing is broken.
  *
  * Each entry is scoped to one path and one method and one status, rather than
- * to 404s, to /rest/ 404s, or to /guest-carts/ 404s. That matters: a cart that
+ * to 404s, to /rest/ 404s, or to cart 404s. That matters: a cart that
  * 404s while the shopper is still checking out has to stay a finding. It would
  * also break the spec's own assertions -- no totals, no order -- which is what
  * makes ignores this narrow safe to carry.
@@ -100,6 +101,11 @@ const ignoredPageErrors: RegExp[] = [/^Transition was aborted because of invalid
 const ignoredHttp: RegExp[] = [
     /^404 GET xhr \/rest\/\S+\/guest-carts\/\w+\/totals/,
     /^404 POST xhr \/rest\/\S+\/guest-carts\/\w+\/estimate-shipping-methods/,
+    // The signed-in shopper's quote, same race on a different resource.
+    // Measured over six runs of customer-checkout.spec.ts: this is the only
+    // variant that appeared, so the estimate-shipping-methods counterpart is
+    // deliberately not ignored for carts/mine until something sees it.
+    /^404 GET xhr \/rest\/\S+\/carts\/mine\/totals/,
 ];
 
 const logFile = path.resolve(__dirname, 'test-results/js-errors.jsonl');

@@ -7,8 +7,8 @@ import { luma } from './luma';
  * The workflow stands OpenSearch up, probes its version and prints it in the
  * run summary -- and until this spec, no test ever sent it a query. A release
  * that shipped a client which could not speak to the engine, an unbuilt
- * catalogsearch_fulltext index, or a changed result template passed all
- * sixteen of the other tests here.
+ * catalogsearch_fulltext index, or a changed result template passed every
+ * other test here.
  *
  * It searches for a sku it reads off a product page rather than one written
  * in this file. That costs two navigations and buys two things: the spec

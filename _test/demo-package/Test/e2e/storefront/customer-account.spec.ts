@@ -1,5 +1,6 @@
 import { expect, test } from '../fixtures';
 import { luma } from './luma';
+import { customerPassword, newShopper, registerCustomer } from './support';
 
 /**
  * The storefront half of having customers: register, sign out, sign back in.
@@ -15,9 +16,8 @@ import { luma } from './luma';
  * Three things about the store this spec relies on, each read from the shipped
  * configuration rather than assumed:
  *
- * - A password needs 8 characters and 3 of the 4 character classes
- *   (customer/password/minimum_password_length,
- *   required_character_classes_number). The one below has all four.
+ * - A password needs 8 characters and 3 of the 4 character classes. See
+ *   customerPassword in support.ts.
  * - Registration signs the customer in. CreatePost calls
  *   setCustomerDataAsLoggedIn unless customer/create_account/confirm is set,
  *   and it is 0. So the login page is only reachable after signing out --
@@ -32,40 +32,12 @@ import { luma } from './luma';
  *   customer/captcha/forms.
  */
 
-const password = 'Mage0s-E2E-pass1';
-
-function shopper() {
-    const stamp = Date.now();
-
-    return {
-        firstName: 'Mage-OS',
-        lastName: `Shopper ${stamp}`,
-        email: `mageos-e2e-shopper-${stamp}@example.test`,
-    };
-}
-
 test.describe('Storefront customer account', () => {
     test('creates an account and signs back into it', { tag: ['@customer'] }, async ({ page }) => {
-        const customer = shopper();
+        const customer = newShopper();
 
         await test.step('the registration form accepts a new account', async () => {
-            const response = await page.goto('/customer/account/create/');
-
-            expect(response?.status(), 'the registration page should be served').toBe(200);
-            await expect(page.locator('body')).toHaveClass(/customer-account-create/);
-
-            await page.fill(luma.registerFirstName, customer.firstName);
-            await page.fill(luma.registerLastName, customer.lastName);
-            await page.fill(luma.registerEmail, customer.email);
-            await page.fill(luma.registerPassword, password);
-            await page.fill(luma.registerPasswordConfirm, password);
-
-            // Read back before submitting. A form that silently dropped a
-            // field fails here, where the cause is visible, rather than as a
-            // validation error whose text is about something else.
-            await expect(page.locator(luma.registerEmail)).toHaveValue(customer.email);
-
-            await page.locator(luma.registerSubmit).click();
+            await registerCustomer(page, customer);
         });
 
         await test.step('registering signs the customer in', async () => {
@@ -110,7 +82,7 @@ test.describe('Storefront customer account', () => {
             await expect(page.locator(luma.loginContainer)).toBeVisible();
 
             await page.fill(luma.loginEmail, customer.email);
-            await page.fill(luma.loginPassword, password);
+            await page.fill(luma.loginPassword, customerPassword);
             await page.locator(luma.loginSubmit).click();
 
             await expect(page).toHaveURL(/\/customer\/account\/?$/);

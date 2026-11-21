@@ -1,4 +1,4 @@
-import { type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { luma } from './luma';
 
 /**
@@ -81,4 +81,107 @@ export function parseMoney(text: string): number {
  */
 export async function asShopper(page: Page): Promise<void> {
     await page.context().clearCookies();
+}
+
+/**
+ * The password every spec here registers with.
+ *
+ * Magento wants 8 characters and 3 of the 4 character classes
+ * (customer/password/minimum_password_length,
+ * required_character_classes_number, both read from the shipped config). This
+ * one has all four, so a store that tightened the policy by one notch still
+ * accepts it.
+ */
+export const customerPassword = 'Mage0s-E2E-pass1';
+
+/** A shopper nothing else in the store has seen, name and address apart. */
+export function newShopper() {
+    const stamp = Date.now();
+
+    return {
+        firstName: 'Mage-OS',
+        lastName: `Shopper ${stamp}`,
+        email: `mageos-e2e-shopper-${stamp}@example.test`,
+    };
+}
+
+/**
+ * One postal address, shared by every spec that needs one.
+ *
+ * Texas and the US because the store installs en_US with the US as its single
+ * allowed country; overridable because a gate run against a store configured
+ * for somewhere else should be a matter of two variables, not a patch.
+ */
+export const shopperAddress = {
+    street: '1 Open Source Way',
+    city: 'Austin',
+    regionId: process.env.E2E_REGION_ID ?? '57', // Texas
+    region: 'Texas',
+    postcode: '78701',
+    telephone: '5125550123',
+    countryId: process.env.E2E_COUNTRY_ID ?? 'US',
+};
+
+/**
+ * Fills an address form -- checkout's or the account's -- with the address
+ * above.
+ *
+ * Deliberately not the name fields. Checkout wants them typed and the account
+ * form arrives with them already filled from the customer entity, and that
+ * prefill is worth asserting rather than overwriting. So the caller owns the
+ * name and this owns the address.
+ */
+export async function fillAddressFields(form: Locator): Promise<void> {
+    // The country select repopulates the region field, so it goes first.
+    await form.locator('select[name="country_id"]').selectOption(shopperAddress.countryId);
+    await form.locator('input[name="street[0]"]').fill(shopperAddress.street);
+    await form.locator('input[name="city"]').fill(shopperAddress.city);
+
+    // Magento renders either a region select or a free-text input depending on
+    // the country. Both are in the account form's markup with one hidden, so
+    // this asks which one is actually on the page rather than which country it
+    // is.
+    const regionSelect = form.locator('select[name="region_id"]');
+    if (await regionSelect.isVisible()) {
+        await regionSelect.selectOption(shopperAddress.regionId);
+    } else {
+        await form.locator('input[name="region"]').fill(shopperAddress.region);
+    }
+
+    await form.locator('input[name="postcode"]').fill(shopperAddress.postcode);
+    await form.locator('input[name="telephone"]').fill(shopperAddress.telephone);
+}
+
+/**
+ * Registers an account and submits the form, leaving the outcome to the
+ * caller: customer-account.spec.ts is about what registration does, and
+ * customer-checkout.spec.ts only needs an account to exist.
+ *
+ * Registration signs the new customer in -- CreatePost calls
+ * setCustomerDataAsLoggedIn unless customer/create_account/confirm is set, and
+ * it is 0 -- so a spec that calls this is signed in from here on. There is no
+ * CAPTCHA on this form: user_create is in always_for but not in
+ * customer/captcha/forms.
+ */
+export async function registerCustomer(
+    page: Page,
+    customer: { firstName: string; lastName: string; email: string },
+): Promise<void> {
+    const response = await page.goto('/customer/account/create/');
+
+    expect(response?.status(), 'the registration page should be served').toBe(200);
+    await expect(page.locator('body')).toHaveClass(/customer-account-create/);
+
+    await page.fill(luma.registerFirstName, customer.firstName);
+    await page.fill(luma.registerLastName, customer.lastName);
+    await page.fill(luma.registerEmail, customer.email);
+    await page.fill(luma.registerPassword, customerPassword);
+    await page.fill(luma.registerPasswordConfirm, customerPassword);
+
+    // Read back before submitting. A form that silently dropped a field fails
+    // here, where the cause is visible, rather than as a validation error
+    // whose text is about something else.
+    await expect(page.locator(luma.registerEmail)).toHaveValue(customer.email);
+
+    await page.locator(luma.registerSubmit).click();
 }

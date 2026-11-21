@@ -1,7 +1,7 @@
 import { type Page } from '@playwright/test';
 import { expect, test } from '../fixtures';
 import { luma } from './luma';
-import { selectRequiredOptions } from './support';
+import { fillAddressFields, selectRequiredOptions } from './support';
 
 // The deepest path a storefront check can walk: catalog -> product -> cart ->
 // shipping -> payment -> order. It touches the layered navigation, the price
@@ -16,35 +16,17 @@ const shopper = {
     email: `mageos-e2e-${Date.now()}@example.com`,
     firstname: 'Mage',
     lastname: 'Tester',
-    street: '1 Open Source Way',
-    city: 'Austin',
-    regionId: process.env.E2E_REGION_ID ?? '57', // Texas
-    postcode: '78701',
-    telephone: '5125550123',
-    countryId: process.env.E2E_COUNTRY_ID ?? 'US',
 };
 
 async function fillShippingAddress(page: Page) {
     const form = page.locator(luma.shippingForm);
 
-    // The country select repopulates the region field, so it goes first.
-    await form.locator('select[name="country_id"]').selectOption(shopper.countryId);
+    // The name is this spec's -- a guest's name is whatever they type -- and
+    // the address is the suite's, shared with the account that
+    // customer-checkout.spec.ts saves one on.
     await form.locator('input[name="firstname"]').fill(shopper.firstname);
     await form.locator('input[name="lastname"]').fill(shopper.lastname);
-    await form.locator('input[name="street[0]"]').fill(shopper.street);
-    await form.locator('input[name="city"]').fill(shopper.city);
-
-    // Magento renders either a region select or a free-text input depending on
-    // the country. Handle whichever is actually on the page.
-    const regionSelect = form.locator('select[name="region_id"]');
-    if (await regionSelect.isVisible()) {
-        await regionSelect.selectOption(shopper.regionId);
-    } else {
-        await form.locator('input[name="region"]').fill('Texas');
-    }
-
-    await form.locator('input[name="postcode"]').fill(shopper.postcode);
-    await form.locator('input[name="telephone"]').fill(shopper.telephone);
+    await fillAddressFields(form);
 }
 
 test.describe('Guest checkout', () => {

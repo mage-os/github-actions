@@ -15,6 +15,7 @@ every change to it and runs this suite against the result.
 | --- | --- | --- |
 | `storefront/hello-magento.spec.ts` | no | the Luma homepage renders with static content deployed |
 | `storefront/guest-checkout.spec.ts` | yes | catalog -> product -> cart -> shipping -> payment -> order |
+| `storefront/customer-checkout.spec.ts` | yes | address book -> preselected address -> order -> My Orders -> the order page |
 | `storefront/product-page.spec.ts` | yes | the product page's own details, and a cart whose arithmetic adds up |
 | `storefront/customer-account.spec.ts` | no | register -> signed in -> sign out -> sign in, and a refused credential |
 | `storefront/search.spec.ts` | yes | a sku read off a product page is found by full-text search, and an absent term is not |
@@ -42,8 +43,8 @@ Storefront selectors live in `storefront/luma.ts`, shared by every spec that
 looks at a storefront page. A Hyva variant of this suite is that file with a
 different map, not a rewrite of the specs. `storefront/support.ts` holds the
 behaviour that goes with them -- choosing whatever options a product requires,
-and reading the number out of a rendered price -- because that part is not
-theme-specific. Three admin specs import from both, which is the point: an
+reading the number out of a rendered price, registering an account, filling an
+address form -- because that part is not theme-specific. Three admin specs import from both, which is the point: an
 admin spec that proves a save reached a shopper is looking at a storefront
 page, and should read it the way the storefront specs do.
 
@@ -162,6 +163,44 @@ same reason.
 
 Registration has no CAPTCHA: `user_create` appears in `always_for` but not in
 `customer/captcha/forms`, and the `forms` list is what decides.
+
+### What a signed-in checkout sees that a guest does not
+
+`storefront/customer-checkout.spec.ts` is not the guest spec with a session
+attached. Checkout renders differently for someone it knows, and all three
+differences below were measured on this store rather than assumed -- each one
+is an assertion the guest spec cannot make:
+
+| | guest | signed in |
+| --- | --- | --- |
+| email | `#customer-email`, the first field to fill | not in the page at all |
+| address | `#co-shipping-form`, empty | the default address, preselected; the form is in the DOM but hidden |
+| success page | the increment id in a bare `<span>` | `a.order-number`, linking to the order |
+
+So the email check is `toHaveCount(0)` and the address-form check is
+`not.toBeVisible()`. Neither could be the other way round: the form *is*
+present -- it belongs to the New Address popup -- and the email field is
+absent rather than hidden.
+
+The order link is what the rest of the spec rests on. A guest order is
+attached to an email address and a signed-in one to a customer id, and that
+association is why the order then appears in My Orders and opens from it. The
+spec carries the increment id the success page gave it to both of those pages,
+so what it proves is that one order moved through, not that three pages each
+rendered something plausible.
+
+One selector trap on the way: the My Orders grid and the order's own items
+table are both `#my-orders-table`. `sales_order_history.phtml` and
+`order_items.phtml` give them the same id, on different pages. The grid is
+therefore addressed through its cells (`td.col.id`, `td.col.status`) and the
+order through `.table-order-items`.
+
+The first address a customer saves becomes the default for billing *and*
+shipping, which is what lets checkout preselect it -- an account with no
+address gets the empty form instead, which is the guest spec's path again.
+The spec also asserts the new-address form arrives carrying the customer's
+name before it types anything into it: a form reading the wrong entity saves
+the address either way, so nothing else would notice.
 
 ### Why a second cart spec
 
@@ -751,15 +790,20 @@ element's own values and fatals with `Cannot access offset of type string on
 string`. `small.xml` carries four entries, so upstream never sees it. Keep at
 least two in the `<configs>` block.
 
-## What the checkout spec does not cover
+## What the checkout specs do not cover
 
-Registered-customer checkout, a real payment gateway, taxes, discounts and
-multi-address shipping. Each wants fixtures of its own, and none of them is on
-the path between "we tagged a release" and "a shopper can buy something".
+A real payment gateway, taxes, discounts, multi-address shipping, and the
+order's life after it is placed -- invoice, shipment, credit memo. Each wants
+fixtures or credentials of its own, and none of them is on the path between
+"we tagged a release" and "a shopper can buy something".
 
-Two of those gaps are now smaller from the other side. `customer-account`
-covers the account itself -- registration, the session it opens, sign-out and
-sign-in -- without checking out as that customer, and `admin/create-order`
-places an order against a quote built in the admin, which is the same quote
-model, carrier pool and payment pool through a different front end. What is
-still missing is a shopper who signs in and then buys something.
+Both ways of buying are covered: `guest-checkout` as a visitor and
+`customer-checkout` as a shopper with an account, an address book entry and an
+order history. `admin/create-order` covers the third front end onto the same
+quote model, carrier pool and payment pool.
+
+The nearest remaining gap is the order state machine. Every order this suite
+places stays Pending, because Check / Money order is the only payment method
+on a store with no gateway credentials, and nothing here invoices or ships
+one. An invoice-and-ship spec against the order `admin/create-order` already
+places would cover it without needing a single new fixture.
