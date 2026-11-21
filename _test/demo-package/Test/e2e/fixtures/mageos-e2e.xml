@@ -26,7 +26,7 @@
   admin/security/use_form_key and admin_account_sharing. The gate does need
   both, and the workflow sets them with the reasons written next to them. They
   are not here because a fixture profile is not where a gate's store config
-  belongs -- a suite run against a hand-seeded store would otherwise get a
+  belongs; a suite run against a hand-seeded store would otherwise get a
   different store than CI.
 -->
 <config xmlns:xi="http://www.w3.org/2001/XInclude">
