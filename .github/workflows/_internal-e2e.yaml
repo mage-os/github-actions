@@ -134,6 +134,12 @@ jobs:
         # Enabling it belongs in its own change, with its own run.
         magento config:set cms/wysiwyg/enabled disabled
 
+        # Redis session locking lets six processes wait on one session, and the
+        # admin's create-order page starts more admin sessions than that at
+        # once: the seventh 500s on mui/index/render and pops the "Attention"
+        # modal over whatever the spec was clicking. Raised, not disabled.
+        magento setup:config:set -n --session-save-redis-max-concurrency=20
+
         magento cache:flush
 
     # Separate from the test run so "never reachable" and "rendered the wrong

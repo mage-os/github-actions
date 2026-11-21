@@ -121,6 +121,38 @@ either: the store is created and destroyed inside one job.
 from that single place. Two places holding separate opinions about the admin
 URL is a 404 that presents as a broken admin.
 
+## The Redis session cap an automated browser reaches
+
+Six. That is how many processes `max_concurrency` lets wait on one session,
+and the admin's create-order page starts more admin sessions than that at
+once -- every ui-component XHR it fires starts one. The seventh is refused:
+
+```
+Cm\RedisSession\ConcurrentConnectionsExceededException
+  -> Magento\Framework\Session\SaveHandler\Redis::read   (Redis.php:86)
+  -> Magento\Backend\Model\Auth\Session->start()
+main.ERROR: Redis session exceeded concurrent connections
+```
+
+What that looks like from the test is nothing like its cause: the refused
+request becomes a `500` on `mui/index/render`, Magento pops its "Attention"
+modal over the page, and the modal swallows the click the spec was making. So
+the spec fails on `locator.click: Timeout` with a modal footer intercepting
+pointer events, three steps away from the session handler.
+
+This took three attempts to pin down, and the two failed ones are the reason
+the `Report what Magento logged` step exists and runs whether the suite passed
+or not. A Playwright retry that succeeds makes the run green and `if: failure()`
+never fires, so the evidence was being thrown away; `--repeat-each` does not
+reproduce it either, because the burst happens inside one page load rather than
+across tests. The run's own `var/log/exception.log` named it in one line.
+
+The workflow therefore sets `--session-save-redis-max-concurrency=20` after
+the install. Raised rather than switched off, with `disable_locking` left
+alone: session locking stays in force, so a release that broke it still has
+somewhere to show up, while the cap that only an automated browser reaches
+stops deciding whether the gate is green.
+
 ## Signing in to the admin
 
 `disable_admin_auth_modules` (default `true`) disables
