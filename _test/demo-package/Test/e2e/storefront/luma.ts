@@ -20,6 +20,20 @@ export const luma = {
     // starts as the parent sku and is rewritten by JS once an option is
     // chosen, so a spec asserts that it is there and not what it says.
     productSku: '.product.attribute.sku .value',
+
+    // Quick search, as Luma renders it in the header. Typing into it fires no
+    // XHR on a default store -- measured: only Magento_Search/js/form-mini.js
+    // loads -- so a search spec has no suggest request to wait for.
+    searchInput: '#search',
+    // The results count, as the toolbar renders it ("1 Item", "Items 1-12 of
+    // 41"). One toolbar renders on a single page of results and two when
+    // there is a second page, so this is read through .first().
+    searchResultsCount: '.toolbar-amount',
+    // The empty-result message. On a no-results page .products.wrapper is not
+    // rendered at all, which is why the result count is read through it:
+    // unscoped, .product-item-info matches 2 elements for one result and 1
+    // element for none.
+    searchNoResults: '.message.notice',
     // Luma's availability block. `.available` is the in-stock variant -- the
     // out-of-stock one is `.unavailable` -- so the selector matching at all
     // is the assertion, and a product the price index has not reached renders

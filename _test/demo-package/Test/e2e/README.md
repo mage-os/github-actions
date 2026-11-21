@@ -17,6 +17,7 @@ every change to it and runs this suite against the result.
 | `storefront/guest-checkout.spec.ts` | yes | catalog -> product -> cart -> shipping -> payment -> order |
 | `storefront/product-page.spec.ts` | yes | the product page's own details, and a cart whose arithmetic adds up |
 | `storefront/customer-account.spec.ts` | no | register -> signed in -> sign out -> sign in, and a refused credential |
+| `storefront/search.spec.ts` | yes | a sku read off a product page is found by full-text search, and an absent term is not |
 | `admin/login.spec.ts` | no | the admin sign-in form refuses a bad credential and accepts a good one |
 | `admin/product-grid.spec.ts` | yes | the product grid renders through Magento_Ui and filters server-side |
 | `admin/create-product.spec.ts` | no | admin form -> EAV save -> url rewrite -> indexers -> storefront -> quote |
@@ -120,6 +121,36 @@ arrives with private content and is a worse thing to assert on.
 A password needs 8 characters and 3 of the 4 character classes
 (`customer/password/minimum_password_length`,
 `required_character_classes_number`).
+
+### Luma's quick search can only be submitted by keyboard
+
+`Magento_Search`'s `form-mini` widget binds a `_.debounce`d handler to the
+search field's `input` event. That handler sets `submitBtn.disabled = true`
+and the re-enable beside it does not stick, so roughly 400ms after typing
+stops the search button is dead for the rest of the page's life.
+
+Measured against a seeded store, with the button already disabled:
+
+| submission | result |
+| --- | --- |
+| `press('Enter')` | submits |
+| `click()` on the button | does not submit |
+| `click({ force: true })` | does not submit |
+| `form.requestSubmit()` | submits |
+
+So the spec types and presses Enter. Clicking the button works only inside
+that 400ms window, which is why doing it looks fine on an idle machine and
+fails on a busy one. Worth reporting upstream: a shopper who types, pauses,
+then reaches for the button gets nothing.
+
+### An absent search term has to be one token
+
+The query is tokenised and matched as an OR, so a hyphenated phrase is not an
+absent term. `zzz-mageos-no-such-product-zzz` splits and matches the entire
+catalogue on `product` alone -- which is how the no-results test failed the
+first time it ran. The term is a single nonsense token, and fixed rather than
+random, because a gate that reports a different failure every run is one
+nobody can triage.
 
 ### The storefront CAPTCHA is on, for two forms
 
