@@ -34,6 +34,20 @@ import { parseMoney } from '../storefront/support';
  * So this spec tracks those requests and waits for them to stop. That is what
  * formReloads() below is, and it is the only reason the rest of this reads as
  * simply as it does.
+ *
+ * ## Why it goes on to invoice and ship
+ *
+ * Placing the order is only the first transition. An order that is created and
+ * then cannot be invoiced or shipped is a store that cannot be run, and
+ * nothing before this spec's last three steps touches that: the invoice and
+ * the shipment are separate entities with their own grids, their own sequence
+ * tables and their own totals, and creating them is what moves the order
+ * through new -> processing -> complete.
+ *
+ * They are steps of this test rather than a spec of their own because they
+ * need an order that nothing else has invoiced, and placing one costs the
+ * dozen round trips above. A second spec would pay that twice to assert
+ * something this one is already holding in its hand.
  */
 
 const orderForm = {
@@ -80,6 +94,33 @@ const orderForm = {
     // form's: Order\View\Items renders .edit-order-table, with the sku in
     // its own element and the quantity as a breakdown ("Ordered 2").
     orderedItems: '.edit-order-table',
+    // Order\View::_construct adds these two by id, each behind its own
+    // guard: order_invoice only while canInvoice(), order_ship only while
+    // canShip(). So their absence is an assertion of its own -- see the last
+    // two lines of the shipping step.
+    invoiceButton: '#order_invoice',
+    shipButton: '#order_ship',
+    // The invoice page and the shipment page submit through the same widget.
+    // Invoice\Create\Items and Shipping's Create\Items both add a
+    // Backend\Widget\Button with class "save submit-button primary" and no
+    // id, so the label is the only thing that tells them apart -- which is
+    // why the steps below filter on it rather than trusting the page they
+    // think they are on.
+    submitDocument: 'button.submit-button',
+    emailCopy: '#send_email',
+    // The invoice page and the saved order render their totals through
+    // Magento_Sales::order/totals.phtml, which is not the markup the create
+    // form above uses -- order/create/totals.phtml renders tr.row-totals --
+    // so this spec needs two sets of totals selectors.
+    //
+    // Addressed by label for a second reason as well. totals.phtml names each
+    // row tr.col-<code> from the key of the totals array, and the invoice's
+    // keys are positional: measured on a two-line invoice, the rows come back
+    // as col-0 (Grand Total), col-0 (Subtotal) and col-1 (Shipping), so the
+    // class says nothing about what the row holds and is not even unique.
+    documentGrandTotal: '#invoice_totals tr:has-text("Grand Total") .price',
+    viewTotalPaid: 'table.order-subtotal-table tr:has-text("Total Paid") .price',
+    viewTotalDue: 'table.order-subtotal-table tr:has-text("Total Due") .price',
 };
 
 const buyer = {
@@ -150,7 +191,7 @@ test.describe('Creating an order in the admin', () => {
     // the form, on a store that may also be building static assets.
     test.setTimeout(300_000);
 
-    test('@admin places an order for a new customer', async ({ page }) => {
+    test('@admin takes an order from placed to shipped', async ({ page }) => {
         const form = formReloads(page);
         const stamp = `${Date.now()}`;
         const customer = {
@@ -268,6 +309,7 @@ test.describe('Creating an order in the admin', () => {
         });
 
         let shipping = 0;
+        let grandTotal = 0;
 
         await test.step('the carrier quotes a rate and the method is chosen', async () => {
             await page.locator(orderForm.getShippingRates).first().click();
@@ -326,7 +368,7 @@ test.describe('Creating an order in the admin', () => {
 
             const totals = page.locator(orderForm.totals);
             const subtotal = parseMoney(await totals.locator(orderForm.subtotalRow).first().innerText());
-            const grandTotal = parseMoney(await totals.locator(orderForm.grandTotalRow).first().innerText());
+            grandTotal = parseMoney(await totals.locator(orderForm.grandTotalRow).first().innerText());
             shipping = grandTotal - subtotal;
 
             // The same arithmetic the cart spec checks on the storefront,
@@ -340,6 +382,7 @@ test.describe('Creating an order in the admin', () => {
         });
 
         let incrementId = '';
+        let orderId = '';
 
         await test.step('submitting it creates the order', async () => {
             await page.locator(orderForm.submit).click();
@@ -355,6 +398,12 @@ test.describe('Creating an order in the admin', () => {
 
             incrementId = (await page.locator(adminSelectors.pageTitle).innerText()).trim().replace(/^#/, '');
             expect(incrementId, 'the order view is titled with the increment id').toMatch(/^\d+$/);
+
+            // Kept because the steps after the grid have to come back here,
+            // and every admin sales route addresses an order by its entity
+            // id, never by the increment id a person reads.
+            orderId = page.url().match(/order_id\/(\d+)/)?.[1] ?? '';
+            expect(orderId, `the order view URL should carry an entity id: ${page.url()}`).toMatch(/^\d+$/);
 
             // The persisted order item, read from the saved order rather than
             // from the form that created it. Scoped to the row that carries
@@ -394,6 +443,136 @@ test.describe('Creating an order in the admin', () => {
             // ui_bookmark, so a filter this spec leaves behind is a filter
             // the next spec inherits.
             await grid.clearFilters();
+        });
+
+        await test.step('invoicing it takes the payment', async () => {
+            await page.goto(adminUrl(`sales/order/view/order_id/${orderId}/`));
+
+            const invoice = page.locator(orderForm.invoiceButton);
+            await expect(
+                invoice,
+                'a pending order paid by an offline method should offer an invoice',
+            ).toBeVisible();
+            await invoice.click();
+
+            await expect(page).toHaveURL(/order_invoice\/new/);
+            await expect(page.locator(adminSelectors.pageTitle)).toContainText('New Invoice');
+
+            // Deliberately left alone rather than cleared. It ships unchecked
+            // -- Invoice\Create\Items renders no checked attribute -- and
+            // this spec depends on that: a store that pre-checked it would
+            // have this step send mail through whatever transport the gate
+            // installed, and the failure would surface as a mail error on an
+            // invoice that was otherwise fine.
+            await expect(
+                page.locator(orderForm.emailCopy),
+                'the invoice email should be opt-in, so this spec sends none',
+            ).not.toBeChecked();
+
+            const invoiceTotal = parseMoney(
+                await page.locator(orderForm.documentGrandTotal).first().innerText(),
+            );
+            expect(invoiceTotal, 'the default invoice should be for the whole order').toBeCloseTo(
+                grandTotal,
+                2,
+            );
+
+            await page
+                .locator(orderForm.submitDocument)
+                .filter({ hasText: 'Submit Invoice' })
+                .first()
+                .click();
+
+            await expect(page.locator(orderForm.saved)).toContainText('The invoice has been created.');
+            await expect(page).toHaveURL(new RegExp(`sales/order/view/order_id/${orderId}`));
+
+            // The first real transition: new -> processing. A store whose
+            // status mapping is broken creates the invoice and leaves the
+            // order where it was.
+            await expect(
+                page.locator(orderForm.orderStatus),
+                'an invoiced order is no longer pending',
+            ).toHaveText('Processing');
+
+            // Check / money order cannot capture, so Invoice::register()
+            // marks the invoice paid as it creates it and the order's paid
+            // total is the whole amount. On a gateway method this would be
+            // zero until the capture came back, which is why this assertion
+            // belongs with the offline method the gate installs rather than
+            // in a helper that claims to hold for any payment.
+            const paid = parseMoney(await page.locator(orderForm.viewTotalPaid).first().innerText());
+            expect(paid, 'an offline invoice is paid as it is created').toBeCloseTo(grandTotal, 2);
+
+            const due = parseMoney(await page.locator(orderForm.viewTotalDue).first().innerText());
+            expect(due, 'a fully invoiced order has nothing left due').toBeCloseTo(0, 2);
+        });
+
+        await test.step('shipping it completes it', async () => {
+            const ship = page.locator(orderForm.shipButton);
+            await expect(ship, 'an invoiced order should still be shippable').toBeVisible();
+            await ship.click();
+
+            await expect(page).toHaveURL(/order_shipment\/new/);
+            await expect(page.locator(adminSelectors.pageTitle)).toContainText('New Shipment');
+
+            await page
+                .locator(orderForm.submitDocument)
+                .filter({ hasText: 'Submit Shipment' })
+                .first()
+                .click();
+
+            await expect(page.locator(orderForm.saved)).toContainText('The shipment has been created.');
+            await expect(
+                page.locator(orderForm.orderStatus),
+                'invoiced and shipped in full is what Complete means',
+            ).toHaveText('Complete');
+
+            // Asserted by absence, which is the only way this page states it:
+            // canInvoice() and canShip() are both false once every item is
+            // invoiced and shipped, and Order\View::_construct then adds
+            // neither button. An order that still offers them is one whose
+            // item quantities did not move.
+            await expect(
+                page.locator(orderForm.invoiceButton),
+                'a fully invoiced order should not offer another invoice',
+            ).toHaveCount(0);
+            await expect(
+                page.locator(orderForm.shipButton),
+                'a fully shipped order should not offer another shipment',
+            ).toHaveCount(0);
+        });
+
+        await test.step('both documents are listed under the order they belong to', async () => {
+            // The same synchronous-grid argument as the order grid above:
+            // sales/general/async_indexing is 0, so sales_invoice_grid and
+            // sales_shipment_grid are written in the request that saves each
+            // document. These are separate grids over separate tables, so a
+            // release that broke one of their indexers would leave the order
+            // grid above green.
+            await page.goto(adminUrl('sales/invoice/'));
+
+            const invoices = adminGrid(page, 'sales_order_invoice_grid');
+            await invoices.ready();
+            await invoices.startUnfiltered();
+            await invoices.filterBy('order_increment_id', incrementId);
+
+            await expect(invoices.rows).toHaveCount(1);
+            await expect(invoices.rows.first()).toContainText(incrementId);
+            await expect(invoices.rows.first(), 'the invoice should be listed as paid').toContainText(
+                'Paid',
+            );
+            await invoices.clearFilters();
+
+            await page.goto(adminUrl('sales/shipment/'));
+
+            const shipments = adminGrid(page, 'sales_order_shipment_grid');
+            await shipments.ready();
+            await shipments.startUnfiltered();
+            await shipments.filterBy('order_increment_id', incrementId);
+
+            await expect(shipments.rows).toHaveCount(1);
+            await expect(shipments.rows.first()).toContainText(incrementId);
+            await shipments.clearFilters();
         });
     });
 });

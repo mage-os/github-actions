@@ -24,7 +24,7 @@ every change to it and runs this suite against the result.
 | `admin/create-product.spec.ts` | no | admin form -> EAV save -> url rewrite -> indexers -> storefront -> quote |
 | `admin/create-category.spec.ts` | yes | category tree -> save -> url rewrite -> category index -> storefront listing + menu |
 | `admin/create-customer.spec.ts` | no | customer form -> save -> read-back -> the storefront refuses the address twice |
-| `admin/create-order.spec.ts` | yes | create-order form -> quote -> shipping rate -> payment -> order -> order grid |
+| `admin/create-order.spec.ts` | yes | create-order form -> quote -> shipping rate -> payment -> order -> order grid -> invoice -> shipment -> both document grids |
 | `admin/menu-navigation.spec.ts` | no | the admin's own rendered link reaches the product grid, secret key or not |
 
 Each area owns a directory, and the Playwright project of the same name
@@ -552,6 +552,58 @@ Three more traps on that page, each of which cost a red run to find:
   The workflow now installs with `max_concurrency=20`; the full account is in
   `.github/workflows/e2e-README.md`.
 
+### Taking that order to Complete
+
+The same spec then invoices and ships the order it placed. That is the order
+state machine -- `new` -> `processing` -> `complete` -- and it is a different
+thing from placing the order: the invoice and the shipment are separate
+entities, with their own sequence tables, their own grids and, in the
+invoice's case, totals of their own.
+
+They are steps of the create-order test rather than a spec of their own
+because they need an order nothing else has invoiced, and placing one costs
+the dozen round trips above. A second spec would pay that twice to assert
+something this one is already holding.
+
+Four things are worth knowing before touching those steps.
+
+- **Neither submit button has an id.** `Invoice\Create\Items` and
+  `Magento_Shipping`'s `Create\Items` both add a
+  `Backend\Block\Widget\Button` with `class="save submit-button primary"`
+  through `addChild`, not through the `ButtonList` the page's own toolbar
+  uses, so the rendered id is a random `id_3OUDV1Cmg...`. The label is the
+  only thing that separates "Submit Invoice" from "Submit Shipment", so the
+  spec filters on it -- which also means a step cannot accidentally submit the
+  page it only thought it was on.
+- **The invoice's totals rows are numbered, not named.**
+  `Magento_Sales::order/totals.phtml` names each row `tr.col-<code>` from the
+  key of the totals array, and for an invoice those keys are positional.
+  Measured on a two-line invoice: `col-0` (Grand Total), `col-0` (Subtotal),
+  `col-1` (Shipping & Handling). The class is neither descriptive nor unique,
+  so these selectors go by label, the same way the create form's do. Note also
+  that this is *not* the markup the create form uses -- `order/create/
+  totals.phtml` renders `tr.row-totals` -- which is why one spec carries two
+  sets of totals selectors.
+- **The invoice email is opt-in, and the spec asserts that it is.**
+  `Invoice\Create\Items` renders `#send_email` with no `checked` attribute.
+  The step asserts it is unchecked rather than clearing it, because a store
+  that pre-checked it would have this step send mail through whatever
+  transport the gate installed, and a mail failure would then present as a
+  broken invoice.
+- **The end state is asserted by absence.** Once every item is invoiced and
+  shipped, `canInvoice()` and `canShip()` are both false and
+  `Order\View::_construct` adds neither button, so the spec asserts
+  `#order_invoice` and `#order_ship` are *gone*. An order that still offers
+  them is one whose item quantities did not move, which a status label alone
+  would not catch.
+
+One more thing the offline payment method buys: Check / Money order cannot
+capture, so `Invoice::register()` marks the invoice paid as it creates it and
+the order's **Total Paid** is the full amount with nothing due. On a gateway
+method both would stay at zero until the capture came back. That assertion
+belongs with the payment method this gate installs, not in a helper that
+claims to hold for any of them.
+
 ### The storefront half of an admin spec is a different visitor
 
 Three admin specs cross into the storefront to prove the save reached a
@@ -578,14 +630,17 @@ cookies costs one request's worth of session and removes the class. The
 `awaitFormKey` wait above does not help here -- there the page has not caught
 up with the cookie yet, and here the cookie itself belongs to somebody else.
 
-### One grid a save does update
+### Three grids a save does update, and one it does not
 
-`admin/create-order.spec.ts` asserts the order appears in the order grid.
-`admin/create-customer.spec.ts` deliberately does not assert the customer
-grid. The difference is in the shipped configuration, not in the specs:
-`sales/general/async_indexing` is `0`, so `sales_order_grid` is written in the
-same request that saves the order, while `customer_grid` is a scheduled
-indexer that this store has no cron to run.
+`admin/create-order.spec.ts` asserts the order appears in the order grid, and
+the invoice and the shipment in theirs -- three separate grids over three
+separate tables, so a release that broke one indexer cannot hide behind
+another. `admin/create-customer.spec.ts` deliberately does not assert the
+customer grid. The difference is in the shipped configuration, not in the
+specs: `sales/general/async_indexing` is `0`, so `sales_order_grid`,
+`sales_invoice_grid` and `sales_shipment_grid` are each written in the request
+that saves their entity, while `customer_grid` is a scheduled indexer that
+this store has no cron to run.
 
 One is a fair assertion. The other would be a red test against a store that is
 working correctly, which is the worst kind to put in front of someone deciding
@@ -859,17 +914,12 @@ least two in the `<configs>` block.
 ## What the checkout specs do not cover
 
 A real payment gateway, taxes, discounts, multi-address shipping, and the
-order's life after it is placed -- invoice, shipment, credit memo. Each wants
-fixtures or credentials of its own, and none of them is on the path between
-"we tagged a release" and "a shopper can buy something".
+refund half of the order's life -- credit memos. Each wants fixtures or
+credentials of its own, and none of them is on the path between "we tagged a
+release" and "a shopper can buy something".
 
 Both ways of buying are covered: `guest-checkout` as a visitor and
 `customer-checkout` as a shopper with an account, an address book entry and an
 order history. `admin/create-order` covers the third front end onto the same
-quote model, carrier pool and payment pool.
-
-The nearest remaining gap is the order state machine. Every order this suite
-places stays Pending, because Check / Money order is the only payment method
-on a store with no gateway credentials, and nothing here invoices or ships
-one. An invoice-and-ship spec against the order `admin/create-order` already
-places would cover it without needing a single new fixture.
+quote model, carrier pool and payment pool, and then takes its own order
+through the state machine -- see below.
