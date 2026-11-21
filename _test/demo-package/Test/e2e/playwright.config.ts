@@ -50,9 +50,12 @@ export default defineConfig({
             testMatch: /admin[\\/]session\.setup\.ts$/,
             use: { ...devices['Desktop Chrome'] },
         },
+        // Both areas match positively, by their own directory. A spec that
+        // lands anywhere else runs in no project at all, which is a louder
+        // failure than the storefront project silently adopting it.
         {
             name: 'storefront',
-            testIgnore: /admin[\\/]/,
+            testMatch: /storefront[\\/].*\.spec\.ts$/,
             use: { ...devices['Desktop Chrome'] },
         },
         {

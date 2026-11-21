@@ -1,7 +1,7 @@
 import { type Page, type Request } from '@playwright/test';
 import { expect, test } from '../fixtures';
 import { adminGrid, adminSelectors, adminUrl } from './support';
-import { parseMoney } from '../storefront';
+import { parseMoney } from '../storefront/support';
 
 /**
  * Placing an order from the admin, which is how a merchant takes a phone

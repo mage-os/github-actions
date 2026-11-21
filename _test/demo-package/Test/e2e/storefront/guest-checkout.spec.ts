@@ -1,7 +1,7 @@
 import { type Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, test } from '../fixtures';
 import { luma } from './luma';
-import { selectRequiredOptions } from './storefront';
+import { selectRequiredOptions } from './support';
 
 // The deepest path a storefront check can walk: catalog -> product -> cart ->
 // shipping -> payment -> order. It touches the layered navigation, the price

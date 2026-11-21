@@ -13,10 +13,10 @@ every change to it and runs this suite against the result.
 
 | Spec | Needs fixtures | Asserts |
 | --- | --- | --- |
-| `hello-magento.spec.ts` | no | the Luma homepage renders with static content deployed |
-| `guest-checkout.spec.ts` | yes | catalog -> product -> cart -> shipping -> payment -> order |
-| `product-page.spec.ts` | yes | the product page's own details, and a cart whose arithmetic adds up |
-| `customer-account.spec.ts` | no | register -> signed in -> sign out -> sign in, and a refused credential |
+| `storefront/hello-magento.spec.ts` | no | the Luma homepage renders with static content deployed |
+| `storefront/guest-checkout.spec.ts` | yes | catalog -> product -> cart -> shipping -> payment -> order |
+| `storefront/product-page.spec.ts` | yes | the product page's own details, and a cart whose arithmetic adds up |
+| `storefront/customer-account.spec.ts` | no | register -> signed in -> sign out -> sign in, and a refused credential |
 | `admin/login.spec.ts` | no | the admin sign-in form refuses a bad credential and accepts a good one |
 | `admin/product-grid.spec.ts` | yes | the product grid renders through Magento_Ui and filters server-side |
 | `admin/create-product.spec.ts` | no | admin form -> EAV save -> url rewrite -> indexers -> storefront -> quote |
@@ -25,11 +25,26 @@ every change to it and runs this suite against the result.
 | `admin/create-order.spec.ts` | yes | create-order form -> quote -> shipping rate -> payment -> order -> order grid |
 | `admin/menu-navigation.spec.ts` | no | the admin's own rendered link reaches the product grid, secret key or not |
 
-Storefront selectors live in `luma.ts`, shared by every spec that looks at a
-storefront page. A Hyva variant of this suite is that file with a different
-map, not a rewrite of the specs. `storefront.ts` holds the behaviour that goes
-with them -- choosing whatever options a product requires, and reading the
-number out of a rendered price -- because that part is not theme-specific.
+Each area owns a directory, and the Playwright project of the same name
+matches it:
+
+```
+fixtures.ts                 the page fixture both areas use
+admin/support.ts            admin helpers, selectors, the saved session
+admin/*.spec.ts
+storefront/luma.ts          storefront selectors
+storefront/support.ts       storefront behaviour
+storefront/*.spec.ts
+```
+
+Storefront selectors live in `storefront/luma.ts`, shared by every spec that
+looks at a storefront page. A Hyva variant of this suite is that file with a
+different map, not a rewrite of the specs. `storefront/support.ts` holds the
+behaviour that goes with them -- choosing whatever options a product requires,
+and reading the number out of a rendered price -- because that part is not
+theme-specific. Three admin specs import from both, which is the point: an
+admin spec that proves a save reached a shopper is looking at a storefront
+page, and should read it the way the storefront specs do.
 
 ## Running it against a store
 
@@ -40,8 +55,8 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
-`guest-checkout.spec.ts` needs a salable product, which a bare `setup:install`
-does not have. Seed one first -- see [Fixtures](#fixtures).
+`storefront/guest-checkout.spec.ts` needs a salable product, which a bare
+`setup:install` does not have. Seed one first -- see [Fixtures](#fixtures).
 
 The admin specs need an admin account and a reachable admin URL. Set
 `MAGENTO_ADMIN_USER`, `MAGENTO_ADMIN_PASSWORD` and `MAGENTO_ADMIN_FRONTNAME`
@@ -76,7 +91,8 @@ login page of Mage-OS 4.0.0:
 So `#send2` matches two elements and `#pass` matches the invisible one. A spec
 that uses either waits thirty seconds for a hidden element to become
 clickable and then reports a timeout, which reads as a broken store rather
-than as a selector that found the wrong copy. Everything in `luma.ts` under
+than as a selector that found the wrong copy. Everything in
+`storefront/luma.ts` under
 sign-in is scoped to `.login-container`, which holds only the real form.
 
 This is the storefront twin of the `#login-form` collision the admin sign-in
@@ -118,7 +134,8 @@ Registration has no CAPTCHA: `user_create` appears in `always_for` but not in
 
 ### Why a second cart spec
 
-`guest-checkout.spec.ts` walks past the product page and the cart on its way
+`storefront/guest-checkout.spec.ts` walks past the product page and the cart
+on its way
 to an order, and it has to -- its subject is the whole path. `product-page`
 looks closely at both instead, and asserts the thing nothing else does: that
 the arithmetic holds. Unit price times quantity is the row subtotal, the rows
@@ -405,7 +422,7 @@ Three more traps on that page, each of which cost a red run to find:
 
 Three admin specs cross into the storefront to prove the save reached a
 shopper. They do it from a fresh session, by `asShopper(page)` in
-`storefront.ts`, and that is not tidiness either.
+`storefront/support.ts`, and that is not tidiness either.
 
 The admin specs reuse a saved admin session, which is a cookie jar the
 storefront requests inherit: an `admin` cookie, a PHPSESSID created in the

@@ -1,6 +1,6 @@
-import { expect, test } from './fixtures';
+import { expect, test } from '../fixtures';
 import { luma } from './luma';
-import { parseMoney, selectRequiredOptions } from './storefront';
+import { parseMoney, selectRequiredOptions } from './support';
 
 /**
  * A product page and the cart it fills, asserted properly.

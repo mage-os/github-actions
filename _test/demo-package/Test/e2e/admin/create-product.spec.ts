@@ -1,7 +1,7 @@
 import { expect, test } from '../fixtures';
 import { adminGrid, adminSelectors, adminUrl } from './support';
-import { luma, productUrl } from '../luma';
-import { asShopper } from '../storefront';
+import { luma, productUrl } from '../storefront/luma';
+import { asShopper } from '../storefront/support';
 
 /**
  * The spec that crosses the most seams in the application, and the reason the

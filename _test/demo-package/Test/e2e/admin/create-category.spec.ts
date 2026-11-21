@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures';
 import { adminSelectors, adminUrl } from './support';
-import { categoryUrl, luma } from '../luma';
+import { categoryUrl, luma } from '../storefront/luma';
 
 /**
  * A category is the other half of the catalog write path, and almost none of

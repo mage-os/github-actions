@@ -1,7 +1,7 @@
 import { expect, test } from '../fixtures';
 import { adminGrid, adminSelectors, adminUrl } from './support';
-import { asShopper } from '../storefront';
-import { luma } from '../luma';
+import { asShopper } from '../storefront/support';
+import { luma } from '../storefront/luma';
 
 /**
  * Creating a customer exercises a write path the product and category specs
