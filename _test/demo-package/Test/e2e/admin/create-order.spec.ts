@@ -47,7 +47,11 @@ import { parseMoney } from '../storefront/support';
  * They are steps of this test rather than a spec of their own because they
  * need an order that nothing else has invoiced, and placing one costs the
  * dozen round trips above. A second spec would pay that twice to assert
- * something this one is already holding in its hand.
+ * something this one is already holding in its hand. The credit memo at the
+ * end is there for the same reason, and it is the one document that can only
+ * be made from an order already paid for: new -> processing -> complete ->
+ * closed is the whole of the order state machine a store with no gateway
+ * credentials can reach.
  */
 
 const orderForm = {
@@ -100,6 +104,12 @@ const orderForm = {
     // two lines of the shipping step.
     invoiceButton: '#order_invoice',
     shipButton: '#order_ship',
+    // order_creditmemo is added while canCreditmemo(), i.e. while the order
+    // has been paid for more than it has been refunded. Its onclick is a
+    // plain setLocation here: Order\View wraps it in confirmSetLocation only
+    // when the payment method isGateway(), and Check / Money order is not
+    // one, so this click navigates rather than opening a dialog.
+    creditMemoButton: '#order_creditmemo',
     // The invoice page and the shipment page submit through the same widget.
     // Invoice\Create\Items and Shipping's Create\Items both add a
     // Backend\Widget\Button with class "save submit-button primary" and no
@@ -108,18 +118,22 @@ const orderForm = {
     // think they are on.
     submitDocument: 'button.submit-button',
     emailCopy: '#send_email',
-    // The invoice page and the saved order render their totals through
-    // Magento_Sales::order/totals.phtml, which is not the markup the create
-    // form above uses -- order/create/totals.phtml renders tr.row-totals --
-    // so this spec needs two sets of totals selectors.
+    // The saved order and the three document pages render their totals
+    // through Magento_Sales::order/totals.phtml, which is not the markup the
+    // create form above uses -- order/create/totals.phtml renders
+    // tr.row-totals -- so this spec needs two sets of totals selectors.
     //
     // Addressed by label for a second reason as well. totals.phtml names each
-    // row tr.col-<code> from the key of the totals array, and the invoice's
-    // keys are positional: measured on a two-line invoice, the rows come back
-    // as col-0 (Grand Total), col-0 (Subtotal) and col-1 (Shipping), so the
-    // class says nothing about what the row holds and is not even unique.
+    // row tr.col-<code> from the key of the totals array, and those keys are
+    // positional, not the totals' own codes. Measured: the invoice's rows are
+    // col-0 (Grand Total), col-0 (Subtotal), col-1 (Shipping), and the saved
+    // order's are col-0 (Grand Total), col-1 (Total Paid), col-2 (Total
+    // Refunded), col-3 (Total Due). The class says nothing about what the row
+    // holds and is not even unique.
     documentGrandTotal: '#invoice_totals tr:has-text("Grand Total") .price',
+    creditMemoGrandTotal: '.creditmemo-totals tr:has-text("Grand Total") .price',
     viewTotalPaid: 'table.order-subtotal-table tr:has-text("Total Paid") .price',
+    viewTotalRefunded: 'table.order-subtotal-table tr:has-text("Total Refunded") .price',
     viewTotalDue: 'table.order-subtotal-table tr:has-text("Total Due") .price',
 };
 
@@ -191,7 +205,7 @@ test.describe('Creating an order in the admin', () => {
     // the form, on a store that may also be building static assets.
     test.setTimeout(300_000);
 
-    test('@admin takes an order from placed to shipped', async ({ page }) => {
+    test('@admin takes an order from placed to refunded', async ({ page }) => {
         const form = formReloads(page);
         const stamp = `${Date.now()}`;
         const customer = {
@@ -542,13 +556,79 @@ test.describe('Creating an order in the admin', () => {
             ).toHaveCount(0);
         });
 
-        await test.step('both documents are listed under the order they belong to', async () => {
+        await test.step('refunding it closes it', async () => {
+            const creditMemo = page.locator(orderForm.creditMemoButton);
+            await expect(
+                creditMemo,
+                'an order that has been paid for should be refundable',
+            ).toBeVisible();
+            await creditMemo.click();
+
+            await expect(page).toHaveURL(/order_creditmemo\/new/);
+            // "New Memo", not "New Credit Memo". Asserted because it is the
+            // one of these three pages whose heading does not read the way
+            // the button that reached it does.
+            await expect(page.locator(adminSelectors.pageTitle)).toContainText('New Memo');
+
+            await expect(
+                page.locator(orderForm.emailCopy),
+                'the credit memo email should be opt-in too',
+            ).not.toBeChecked();
+
+            // The memo arrives filled in for the whole order: the item rows
+            // carry their ordered quantity and creditmemo[shipping_amount]
+            // is prefilled with the shipping that is still refundable, so
+            // submitting it as it stands refunds everything. If a release
+            // ever stopped prefilling the shipping, this is the assertion
+            // that says so -- the refund would simply come up short.
+            const refundTotal = parseMoney(
+                await page.locator(orderForm.creditMemoGrandTotal).first().innerText(),
+            );
+            expect(
+                refundTotal,
+                'the default memo should refund the whole order, shipping included',
+            ).toBeCloseTo(grandTotal, 2);
+
+            // Refund Offline is the only button an offline method offers --
+            // Creditmemo\Create\Items adds "Refund" as well only when the
+            // payment can refund online. Filtering on the label means a store
+            // that did offer both does not have this step pick by accident.
+            await page
+                .locator(orderForm.submitDocument)
+                .filter({ hasText: 'Refund Offline' })
+                .first()
+                .click();
+
+            await expect(page.locator(orderForm.saved)).toContainText('You created the credit memo.');
+            await expect(page).toHaveURL(new RegExp(`sales/order/view/order_id/${orderId}`));
+
+            // The last transition this store can reach: complete -> closed.
+            await expect(
+                page.locator(orderForm.orderStatus),
+                'an order refunded in full is closed',
+            ).toHaveText('Closed');
+
+            const refunded = parseMoney(
+                await page.locator(orderForm.viewTotalRefunded).first().innerText(),
+            );
+            expect(refunded, 'the whole amount should be refunded').toBeCloseTo(grandTotal, 2);
+
+            // Asserted by absence again: canCreditmemo() compares what was
+            // paid against what was refunded, so a second memo is offered
+            // only if the first one did not account for everything.
+            await expect(
+                page.locator(orderForm.creditMemoButton),
+                'a fully refunded order should not offer another credit memo',
+            ).toHaveCount(0);
+        });
+
+        await test.step('every document is listed under the order it belongs to', async () => {
             // The same synchronous-grid argument as the order grid above:
-            // sales/general/async_indexing is 0, so sales_invoice_grid and
-            // sales_shipment_grid are written in the request that saves each
-            // document. These are separate grids over separate tables, so a
-            // release that broke one of their indexers would leave the order
-            // grid above green.
+            // sales/general/async_indexing is 0, so sales_invoice_grid,
+            // sales_shipment_grid and sales_creditmemo_grid are each written
+            // in the request that saves their entity. These are three grids
+            // over three tables, so a release that broke one of their
+            // indexers would leave the order grid above green.
             await page.goto(adminUrl('sales/invoice/'));
 
             const invoices = adminGrid(page, 'sales_order_invoice_grid');
@@ -558,6 +638,8 @@ test.describe('Creating an order in the admin', () => {
 
             await expect(invoices.rows).toHaveCount(1);
             await expect(invoices.rows.first()).toContainText(incrementId);
+            // Still Paid after the refund: refunding the order does not
+            // unpay its invoice, it adds a credit memo beside it.
             await expect(invoices.rows.first(), 'the invoice should be listed as paid').toContainText(
                 'Paid',
             );
@@ -573,6 +655,20 @@ test.describe('Creating an order in the admin', () => {
             await expect(shipments.rows).toHaveCount(1);
             await expect(shipments.rows.first()).toContainText(incrementId);
             await shipments.clearFilters();
+
+            await page.goto(adminUrl('sales/creditmemo/'));
+
+            const memos = adminGrid(page, 'sales_order_creditmemo_grid');
+            await memos.ready();
+            await memos.startUnfiltered();
+            await memos.filterBy('order_increment_id', incrementId);
+
+            await expect(memos.rows).toHaveCount(1);
+            await expect(memos.rows.first()).toContainText(incrementId);
+            await expect(memos.rows.first(), 'the memo should be listed as refunded').toContainText(
+                'Refunded',
+            );
+            await memos.clearFilters();
         });
     });
 });
