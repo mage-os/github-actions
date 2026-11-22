@@ -1,0 +1,379 @@
+name: E2E Test
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+    - main
+    paths:
+    - "_test/demo-package/Test/e2e/**"
+    - "warden/**"
+    - "setup-magento/**"
+    - ".github/workflows/_internal-e2e.yaml"
+    - "!(**/*.md)"
+  pull_request:
+    branches:
+    - main
+    paths:
+    - "_test/demo-package/Test/e2e/**"
+    - "warden/**"
+    - "setup-magento/**"
+    - ".github/workflows/_internal-e2e.yaml"
+    - "!(**/*.md)"
+
+# Standing up the whole stack costs a runner for a while; there is no reason to
+# keep paying for a run whose commit has already been superseded.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  storefront-smoke-test:
+    name: "storefront and admin tests"
+    if: "!startsWith(github.head_ref, 'release-please')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # setup:install, the hostname the runner resolves and the URL the browser
+      # opens all have to agree, so they are derived from one place.
+      TRAEFIK_DOMAIN: mageos.test
+      TRAEFIK_SUBDOMAIN: app
+      E2E_DIRECTORY: actions/_test/demo-package/Test/e2e
+      # Pinned rather than taken from supported-version: this workflow reports
+      # whether the action still serves a store, so a service bump elsewhere
+      # should not change what it says. The release pipeline picks its own.
+      PHP_VERSION: "8.4"
+      COMPOSER_VERSION: "2.10.2"
+      # Declared once and handed to both the install and the suite: two
+      # opinions about the admin URL is a 404 that looks like a broken admin.
+      ADMIN_FRONTNAME: "admin"
+      # Hardcoded by warden/setup-environment. Not a secret: a throwaway store
+      # that exists for the length of the job.
+      ADMIN_USER: "admin"
+      ADMIN_PASSWORD: "abcABC123"
+    steps:
+    # Not at the workspace root: warden/setup-environment puts the Warden CLI
+    # in warden/ there, which is where this repository keeps that action.
+    - uses: actions/checkout@v6
+      with:
+        path: actions
+
+    # mode: extension, like the other internal workflows: create-project
+    # --no-install into ./_ghamagento, then install inside the container.
+    - name: Create the Mage-OS project
+      uses: ./actions/setup-magento
+      with:
+        php-version: ${{ env.PHP_VERSION }}
+        tools: "composer:v2"
+        mode: extension
+        magento_repository: "https://repo.mage-os.org/"
+        magento_version: "mage-os/project-community-edition:4.0.0"
+
+    - name: Serve the store in Warden
+      id: warden
+      uses: ./actions/warden/setup-environment
+      with:
+        base_directory: "./_ghamagento"
+        php_version: ${{ env.PHP_VERSION }}
+        composer_version: ${{ env.COMPOSER_VERSION }}
+        database: "mariadb:11.8"
+        search: "opensearch:3.4"
+        rabbitmq: "rabbitmq:4.2"
+        redis: "redis:7.4"
+        varnish: "varnish:8.0"
+        run_composer_install: 1
+        run_setup_install: 1
+        run_admin_user_creation: 1
+        varnish_as_page_cache: 1
+        run_reindex: 1
+        traefik_domain: ${{ env.TRAEFIK_DOMAIN }}
+        traefik_subdomain: ${{ env.TRAEFIK_SUBDOMAIN }}
+        # The three inputs a browser needs, and nothing a PHPUnit suite pays for.
+        base_url: "https://${{ env.TRAEFIK_SUBDOMAIN }}.${{ env.TRAEFIK_DOMAIN }}/"
+        configure_host_resolution: 1
+        backend_frontname: ${{ env.ADMIN_FRONTNAME }}
+        run_static_content_deploy: 1
+        # The admin themes as well as the storefront one, or the admin specs
+        # wait for each asset to be built on demand. Both, because Mage-OS
+        # renders the admin in MageOS/m137-admin-theme: deploying only the
+        # parent left run 43932819737 serving the login page's own stylesheet
+        # as a 404 while it built it -- "Refused to apply style ... MIME type
+        # ('text/html')", a flaky red on the session setup.
+        static_content_themes: "Magento/luma Magento/backend MageOS/m137-admin-theme"
+
+    # What run_magento_config_preset used to do, written out: one of these
+    # moves the store away from what it ships as, which a gate should say
+    # where the gate is defined. web/seo/use_rewrites is dropped --
+    # setup:install already passed --use-rewrites=1 with a base URL given.
+    - name: Configure the store the suite assumes
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        magento() { ${WARDEN} env exec -T php-fpm bin/magento "$@"; }
+
+        # The browser speaks https to Traefik, so the store has to build https
+        # links on both sides. --lock-env: this belongs to the environment.
+        magento config:set --lock-env web/secure/use_in_frontend 1
+        magento config:set --lock-env web/secure/use_in_adminhtml 1
+
+        # "Add Secret Key to URLs" (XML_PATH_USE_SECURE_KEY), not the POST
+        # form key -- _processUrlKeys validates that either way, so admin CSRF
+        # protection stays on. With it on, as it ships, a GET to a bare admin
+        # route 302s to the dashboard: a 200 no failed-request check can see.
+        # Every admin spec but menu-navigation navigates by bare route.
+        magento config:set admin/security/use_form_key 0
+
+        # Off, a login terminates the account's other sessions
+        # (AdminSessionsManager), and the suite shares one account across a
+        # saved storageState. Upstream's integration suite sets it too.
+        magento config:set admin/security/admin_account_sharing 1
+
+        # Inherited from the preset, and a hole: the description fields ship
+        # with TinyMCE, so the gate never loads the editor the admin renders.
+        # Enabling it belongs in its own change, with its own run.
+        magento config:set cms/wysiwyg/enabled disabled
+
+        # Redis session locking lets six processes wait on one session, and the
+        # admin's create-order page starts more admin sessions than that at
+        # once: the seventh 500s on mui/index/render and pops the "Attention"
+        # modal over whatever the spec was clicking. Raised, not disabled.
+        magento setup:config:set -n --session-save-redis-max-concurrency=20
+
+        magento cache:flush
+
+    # Separate from the test run so "never reachable" and "rendered the wrong
+    # thing" are different red steps. The status is captured rather than piped
+    # into head: a `run:` without `shell: bash` has no pipefail, so
+    # `curl --fail | head` once reported a 404 and passed anyway.
+    - name: Confirm the store answers on the resolved hostname
+      shell: bash
+      env:
+        BASE_URL: ${{ steps.warden.outputs.base_url }}
+      run: |
+        STATUS="$(curl --silent --show-error --insecure --output /dev/null --write-out '%{http_code}' "$BASE_URL")"
+        echo "${BASE_URL} -> ${STATUS}"
+
+        if [ "${STATUS}" != "200" ]; then
+          echo "::error::the store answered ${STATUS}, not 200 -- nothing below this ran against a working store"
+          exit 1
+        fi
+
+    # Probed from the running stack, not echoed back from the inputs: a
+    # version input can be a constraint, and a service tag carries no patch
+    # level. A failing gate has to be able to say "it broke on OpenSearch
+    # 3.3.2". Nothing here fails the job; an empty probe reports "unknown".
+    - name: Record the stack under test
+      id: stack
+      working-directory: ./_ghamagento
+      shell: bash
+      env:
+        BASE_URL: ${{ steps.warden.outputs.base_url }}
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        # Stderr is captured too: varnishd -V writes its version there.
+        probe() { ${WARDEN} env exec -T "$1" "${@:2}" 2>&1 | tr -d '\r' || true; }
+
+        RAW="$(probe php-fpm bin/magento --version | head -1)"
+        echo "${RAW}"
+        MAGEOS="$(printf '%s' "${RAW}" | sed -n 's/.*CLI \([0-9][^ ]*\).*/\1/p')"
+        MAGENTO="$(printf '%s' "${RAW}" | sed -n 's/.*based on Magento \([0-9][^)]*\).*/\1/p')"
+
+        PHP="$(probe php-fpm php -r 'echo PHP_VERSION;' | head -1)"
+        DB="$(probe db mariadb --version | sed -n 's/.*from \([0-9][0-9.]*\).*/\1/p' | head -1)"
+        SEARCH="$(probe php-fpm curl -s http://opensearch:9200 | tr -d '\n' | sed -n 's/.*"number"[^"]*"\([^"]*\)".*/\1/p')"
+        REDIS="$(probe redis redis-server --version | sed -n 's/.*v=\([0-9][0-9.]*\).*/\1/p' | head -1)"
+        VARNISH="$(probe varnish varnishd -V | sed -n 's/.*varnish-\([0-9][0-9.]*\).*/\1/p' | head -1)"
+
+        # Which side owns the page cache, and whether it is caching. Magento
+        # only purges Varnish when Varnish is configured as the cache, and one
+        # it never invalidates passes every spec that visits a URL once, then
+        # fails the first that revisits a changed page -- looking like a bug.
+        FPC="$(probe php-fpm bin/magento config:show system/full_page_cache/caching_application | head -1)"
+        case "${FPC}" in
+          2) FPC="Varnish" ;;
+          1) FPC="Magento built-in" ;;
+          *) FPC="Magento built-in (unset)" ;;
+        esac
+        HEADERS="$(curl --silent --show-error --insecure --head "${BASE_URL}" 2>&1 | tr -d '\r' || true)"
+        AGE="$(printf '%s' "${HEADERS}" | sed -n 's/^[Aa]ge: *//p' | head -1)"
+        XCACHE="$(printf '%s' "${HEADERS}" | sed -n 's/^[Xx]-[Mm]agento-[Cc]ache-[Dd]ebug: *//p' | head -1)"
+        CACHECONTROL="$(printf '%s' "${HEADERS}" | sed -n 's/^[Cc]ache-[Cc]ontrol: *//p' | head -1)"
+
+        # Only the application versions reach the tests. No spec should branch
+        # on a Redis patch level.
+        echo "mageos=${MAGEOS:-unknown}" >> $GITHUB_OUTPUT
+        echo "magento=${MAGENTO:-unknown}" >> $GITHUB_OUTPUT
+
+        {
+          echo "### Stack under test"
+          echo
+          echo "| | Version |"
+          echo "| --- | --- |"
+          echo "| Mage-OS | ${MAGEOS:-unknown} |"
+          echo "| Magento | ${MAGENTO:-unknown} |"
+          echo "| PHP | ${PHP:-unknown} |"
+          echo "| Database | ${DB:-unknown} |"
+          echo "| Search | ${SEARCH:-unknown} |"
+          echo "| Redis | ${REDIS:-unknown} |"
+          echo "| Varnish | ${VARNISH:-unknown} |"
+          echo "| Page cache owner | ${FPC} |"
+          echo "| Homepage \`Cache-Control\` | ${CACHECONTROL:-none} |"
+          echo "| Homepage \`Age\` | ${AGE:-none} |"
+          echo "| Homepage \`X-Magento-Cache-Debug\` | ${XCACHE:-none} |"
+        } >> $GITHUB_STEP_SUMMARY
+
+    # Magento has no switch for 2FA: force_providers is empty by default and
+    # ControllerActionPredispatch still routes a fresh admin user to
+    # tfa/tfa/index. Disabling the module is the only way in, and
+    # MageOS_PasskeyAuth requires it, so both go in one command. The cost is
+    # explicit: this gate does not cover admin 2FA.
+    - name: Open the admin to the test suite
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+
+        MODULES=()
+        for MODULE in MageOS_PasskeyAuth Magento_TwoFactorAuth; do
+          # module:status exits 0 for a module that is not installed, so its
+          # output is the only signal. MageOS_PasskeyAuth is Mage-OS only.
+          if ${WARDEN} env exec -T php-fpm bin/magento module:status "${MODULE}" 2>&1 | grep -q 'does not exist'; then
+            echo "${MODULE} is not installed"
+          else
+            MODULES+=("${MODULE}")
+          fi
+        done
+
+        # An array, not a string: module:disable reads a space-joined string
+        # as one unknown module name. Re-running it changes nothing, exits 0.
+        if [ ${#MODULES[@]} -gt 0 ]; then
+          ${WARDEN} env exec -T php-fpm bin/magento module:disable "${MODULES[@]}"
+        fi
+
+        # Already the default. Pinned because it gates Magento_AdminAnalytics'
+        # usage-data modal, which would cover the dashboard on first sign-in.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set admin/usage/enabled 0
+
+        # On by default, in after_fail mode, after three failed attempts per
+        # login name -- counted in captcha_log, which survives across runs
+        # against a long-lived store. A suite that asserts a bad credential is
+        # refused makes exactly those failures, and the symptom is an
+        # "Incorrect CAPTCHA" on a password that is correct.
+        ${WARDEN} env exec -T php-fpm bin/magento config:set admin/captcha/enable 0
+        ${WARDEN} env exec -T php-fpm bin/magento cache:flush
+
+    # A bare setup:install has nothing to buy. The command reindexes itself.
+    # Streamed in rather than copied: the project directories are owned by the
+    # container's user.
+    - name: Seed the catalog
+      working-directory: ./_ghamagento
+      shell: bash
+      env:
+        PROFILE: ${{ github.workspace }}/${{ env.E2E_DIRECTORY }}/fixtures/mageos-e2e.xml
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        ${WARDEN} env exec -T php-fpm bash -c 'cat > /tmp/mageos-e2e.xml' < "${PROFILE}"
+        ${WARDEN} env exec -T php-fpm bin/magento setup:performance:generate-fixtures /tmp/mageos-e2e.xml
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: ${{ env.E2E_DIRECTORY }}/package-lock.json
+
+    - name: Install Playwright
+      working-directory: ${{ env.E2E_DIRECTORY }}
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+
+    - name: Run the tests
+      working-directory: ${{ env.E2E_DIRECTORY }}
+      env:
+        PLAYWRIGHT_BASE_URL: ${{ steps.warden.outputs.base_url }}
+        MAGEOS_VERSION: ${{ steps.stack.outputs.mageos }}
+        MAGENTO_VERSION: ${{ steps.stack.outputs.magento }}
+        MAGENTO_ADMIN_USER: ${{ env.ADMIN_USER }}
+        MAGENTO_ADMIN_PASSWORD: ${{ env.ADMIN_PASSWORD }}
+        MAGENTO_ADMIN_FRONTNAME: ${{ env.ADMIN_FRONTNAME }}
+      run: npx playwright test
+
+    # A test that fails and then passes on its retry leaves the job green, so
+    # the failure() step below never runs and whatever Magento threw is lost
+    # with the containers. That is how one rehearsal recorded a 500 from the
+    # admin notification area with no exception to go with it. This runs
+    # either way, and says so when there is nothing to report.
+    - name: Report what Magento logged
+      if: ${{ !cancelled() }}
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+        in_php() { ${WARDEN} env exec -T php-fpm bash -c "$1" 2>/dev/null || true; }
+
+        REPORTS="$(in_php 'ls -1 var/report 2>/dev/null | head -20')"
+        if [ -n "${REPORTS}" ]; then
+          for REPORT in ${REPORTS}; do
+            echo "::group::var/report/${REPORT}"
+            in_php "head -c 4000 var/report/${REPORT}"
+            echo
+            echo "::endgroup::"
+          done
+        else
+          echo "Magento wrote no exception reports."
+        fi
+
+        EXCEPTIONS="$(in_php 'tail -n 50 var/log/exception.log 2>/dev/null')"
+        if [ -n "${EXCEPTIONS}" ]; then
+          echo "::group::var/log/exception.log (last 50 lines)"
+          printf '%s\n' "${EXCEPTIONS}"
+          echo "::endgroup::"
+        fi
+
+        # Severity-filtered: system.log is mostly INFO "Broken reference"
+        # lines on any Magento install, and printing those every run would
+        # bury the one entry worth reading.
+        ERRORS="$(in_php 'grep -hE "\.(ERROR|CRITICAL|ALERT|EMERGENCY):" var/log/system.log 2>/dev/null | tail -n 50')"
+        if [ -n "${ERRORS}" ]; then
+          echo "::group::var/log/system.log (errors only)"
+          printf '%s\n' "${ERRORS}"
+          echo "::endgroup::"
+        fi
+
+    # What the stack was doing when something went wrong: the containers go
+    # away with the runner, and nothing in the log says whether nginx was up
+    # or whether Traefik had a route. Nothing here may fail the job.
+    - name: Report what the stack was doing
+      if: failure()
+      working-directory: ./_ghamagento
+      shell: bash
+      run: |
+        export WARDEN="$(dirname $(pwd))/warden/bin/warden"
+
+        echo "::group::containers"
+        ${WARDEN} env ps || true
+        echo "::endgroup::"
+
+        for SERVICE in nginx varnish php-fpm; do
+          echo "::group::${SERVICE}"
+          ${WARDEN} env logs --tail=50 "${SERVICE}" || true
+          echo "::endgroup::"
+        done
+
+        # A Traefik 404 and a Magento 404 look identical from the outside, and
+        # only one of them is about the store.
+        echo "::group::traefik"
+        ${WARDEN} svc logs --tail=50 traefik || true
+        echo "::endgroup::"
+
+    - name: Upload the Playwright report
+      if: ${{ !cancelled() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: |
+          ${{ env.E2E_DIRECTORY }}/playwright-report
+          ${{ env.E2E_DIRECTORY }}/test-results
+        retention-days: 30
+        if-no-files-found: ignore

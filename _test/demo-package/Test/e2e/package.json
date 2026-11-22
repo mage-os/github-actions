@@ -1,0 +1,13 @@
+{
+  "name": "demo-package-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Minimal Playwright suite proving a Mage-OS storefront is actually served.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "dotenv": "^18.0.9"
+  }
+}
